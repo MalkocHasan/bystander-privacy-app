@@ -73,6 +73,20 @@ const db = {
             { id: 12, name: 'Work Assistant', type: 'speaker', status: 'active', room: 'Office' },
         ],
         requests: []
+    },
+    '5678': {
+        homeCode: '5678',
+        homeName: 'Modern Loft',
+        ownerName: 'Sarah Johnson',
+        activeMode: 'security',
+        availableModes: PRIVACY_MODES,
+        devices: [
+            { id: 101, name: 'Main Camera', type: 'camera', status: 'active', room: 'Living Room' },
+            { id: 102, name: 'Google Home', type: 'speaker', status: 'active', room: 'Living Room' },
+            { id: 103, name: 'Smart Lock', type: 'lock', status: 'active', room: 'Entrance' },
+            { id: 104, name: 'Bedroom Cam', type: 'camera', status: 'active', room: 'Bedroom' }
+        ],
+        requests: []
     }
 };
 
