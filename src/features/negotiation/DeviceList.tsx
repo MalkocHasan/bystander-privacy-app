@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useHomeStore } from '../../store/useHomeStore';
 import type { DeviceType, DeviceStatus, Device, RequestType } from '../../types';
-import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock } from 'lucide-react';
+import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid } from 'lucide-react';
 import { RequestModal } from './RequestModal';
 
 export const DeviceList: React.FC = () => {
@@ -15,8 +15,16 @@ export const DeviceList: React.FC = () => {
 
     const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
     const [modalMode, setModalMode] = useState<'request' | 'restore'>('request');
+    const [selectedRoom, setSelectedRoom] = useState<string>('All');
 
     if (!currentHome) return null;
+
+    // --- Rooms Logic ---
+    const rooms = ['All', ...new Set(currentHome.devices.map(d => d.room))];
+
+    const filteredDevices = currentHome.devices.filter(device =>
+        selectedRoom === 'All' || device.room === selectedRoom
+    );
 
     const handleDeviceClick = (device: Device) => {
         // HOST: Full Control (Toggle)
@@ -119,8 +127,29 @@ export const DeviceList: React.FC = () => {
 
     return (
         <>
-            <div className="grid grid-cols-2 gap-3">
-                {currentHome.devices.map((device) => {
+            {/* Room Tabs */}
+            <div className="flex overflow-x-auto pb-4 mb-2 gap-2 scrollbar-hide -mx-2 px-2">
+                {rooms.map(room => (
+                    <button
+                        key={room}
+                        onClick={() => setSelectedRoom(room)}
+                        className={`
+                            px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border
+                            ${selectedRoom === room
+                                ? 'bg-slate-800 text-white border-slate-800 shadow-md dark:bg-indigo-500 dark:text-white dark:border-indigo-500'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+                            }
+                        `}
+                    >
+                        {room === 'All' && <LayoutGrid className="w-3 h-3 inline-block mr-1.5 -mt-0.5" />}
+                        {room}
+                    </button>
+                ))}
+            </div>
+
+            {/* Device Grid */}
+            <div className="grid grid-cols-2 gap-3 min-h-[300px] content-start">
+                {filteredDevices.map((device) => {
                     const requestStatus = getRequestStatus(device.id);
                     const config = getStatusConfig(device.type, device.status, requestStatus);
                     const StatusIcon = config.icon;
@@ -131,7 +160,7 @@ export const DeviceList: React.FC = () => {
                             onClick={() => handleDeviceClick(device)}
                             className={`
                                 card-base p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer hover:shadow-md active:scale-95
-                                ${requestStatus === 'pending' ? 'ring-2 ring-amber-200' : ''}
+                                ${requestStatus === 'pending' ? 'ring-2 ring-amber-200 dark:ring-amber-500/50' : ''}
                             `}
                         >
                             <div className="flex justify-between items-start">
@@ -146,16 +175,22 @@ export const DeviceList: React.FC = () => {
                             </div>
 
                             <div>
-                                <h4 className="font-bold text-slate-700 text-sm leading-tight">
+                                <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm leading-tight">
                                     {device.name}
                                 </h4>
-                                <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
                                     {device.room}
                                 </p>
                             </div>
                         </div>
                     );
                 })}
+
+                {filteredDevices.length === 0 && (
+                    <div className="col-span-2 text-center py-12 text-slate-400 dark:text-slate-600">
+                        <p className="text-sm">No devices found in {selectedRoom}</p>
+                    </div>
+                )}
             </div>
 
             {/* Negotiation Modal (Handles both Request & Restore) */}

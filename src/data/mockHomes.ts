@@ -50,48 +50,26 @@ export const MOCK_HOMES: Record<string, HomeProfile> = {
         activeMode: 'security',
         availableModes: PRIVACY_MODES,
         devices: [
-            {
-                id: 1,
-                name: 'Living Room Camera',
-                type: 'camera',
-                status: 'active',
-                room: 'Living Room',
-            },
-            {
-                id: 2,
-                name: 'Alexa Echo',
-                type: 'speaker',
-                status: 'active',
-                room: 'Living Room',
-            },
-            {
-                id: 3,
-                name: 'Front Door Lock',
-                type: 'lock',
-                status: 'active',
-                room: 'Entrance',
-            },
-            {
-                id: 4,
-                name: 'Kitchen Camera',
-                type: 'camera',
-                status: 'active',
-                room: 'Kitchen',
-            },
-            {
-                id: 5,
-                name: 'Motion Sensor',
-                type: 'sensor',
-                status: 'active',
-                room: 'Living Room',
-            },
-            {
-                id: 6,
-                name: 'Smart Lights',
-                type: 'light',
-                status: 'active',
-                room: 'Living Room',
-            },
+            // Living Room
+            { id: 1, name: 'Living Room Cam', type: 'camera', status: 'active', room: 'Living Room' },
+            { id: 2, name: 'Alexa Echo', type: 'speaker', status: 'active', room: 'Living Room' },
+            { id: 5, name: 'Motion Detector', type: 'sensor', status: 'active', room: 'Living Room' },
+
+            // Kitchen
+            { id: 4, name: 'Kitchen Nest Hub', type: 'camera', status: 'active', room: 'Kitchen' },
+            { id: 7, name: 'Smart Fridge Cam', type: 'camera', status: 'active', room: 'Kitchen' },
+
+            // Entrance
+            { id: 3, name: 'Front Door Lock', type: 'lock', status: 'active', room: 'Entrance' },
+            { id: 8, name: 'Video Doorbell', type: 'camera', status: 'active', room: 'Entrance' },
+
+            // Bedroom
+            { id: 9, name: 'Baby Monitor', type: 'camera', status: 'active', room: 'Bedroom' },
+            { id: 10, name: 'Bedroom Speaker', type: 'speaker', status: 'active', room: 'Bedroom' },
+
+            // Office
+            { id: 11, name: 'Office Webcam', type: 'camera', status: 'active', room: 'Office' },
+            { id: 12, name: 'Work Assistant', type: 'speaker', status: 'active', room: 'Office' },
         ],
     },
     '5678': {
