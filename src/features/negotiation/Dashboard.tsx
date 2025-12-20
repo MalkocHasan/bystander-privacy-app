@@ -5,11 +5,12 @@ import { ModeSelector } from './ModeSelector';
 import { DeviceList } from './DeviceList';
 import { Button } from '../../components/ui/Button';
 import { Home, ShieldCheck, LogOut, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AdminNotification } from './AdminNotification';
+import { RoleSwitcher } from '../../components/debug/RoleSwitcher';
 
 export const Dashboard: React.FC = () => {
     const navigate = useNavigate();
-    const currentHome = useHomeStore((state) => state.currentHome);
-    const disconnect = useHomeStore((state) => state.disconnect);
+    const { currentHome, disconnect, currentUserRole } = useHomeStore();
 
     const handleDisconnect = () => {
         disconnect();
@@ -61,7 +62,10 @@ export const Dashboard: React.FC = () => {
     const HeroIcon = hero.icon;
 
     return (
-        <div className="min-h-screen px-6 py-8 max-w-lg mx-auto space-y-8 animate-fade-in pb-12">
+        <div className="min-h-screen px-6 py-8 max-w-lg mx-auto space-y-8 animate-fade-in pb-20">
+
+            {/* Host Notifications */}
+            <AdminNotification />
 
             {/* Header / Nav */}
             <header className="flex items-center justify-between mb-6">
@@ -73,8 +77,13 @@ export const Dashboard: React.FC = () => {
                         <h1 className="font-bold text-slate-800 text-lg leading-tight">
                             {currentHome.homeName}
                         </h1>
-                        <p className="text-xs text-slate-400 font-medium">
+                        <p className="text-xs text-slate-400 font-medium flex items-center">
                             Host: {currentHome.ownerName}
+                            {currentUserRole === 'host' && (
+                                <span className="ml-2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                                    Admin View
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -106,13 +115,18 @@ export const Dashboard: React.FC = () => {
                 </div>
             </section>
 
-            {/* Connection Pucks (Mode Selector) */}
-            <section>
-                <div className="flex items-center justify-between mb-4 px-2">
-                    <h3 className="font-bold text-slate-800 text-lg">Privacy Modes</h3>
-                </div>
-                <ModeSelector />
-            </section>
+            {/* Connection Pucks (Mode Selector) - ADMIN ONLY */}
+            {currentUserRole === 'host' && (
+                <section>
+                    <div className="flex items-center justify-between mb-4 px-2">
+                        <h3 className="font-bold text-slate-800 text-lg">Privacy Modes</h3>
+                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-1 rounded-full uppercase tracking-wider">
+                            Admin Control
+                        </span>
+                    </div>
+                    <ModeSelector />
+                </section>
+            )}
 
             {/* Device List (Smart Home Grid) */}
             <section>
@@ -126,12 +140,15 @@ export const Dashboard: React.FC = () => {
             </section>
 
             {/* Footer */}
-            <div className="text-center pt-8 border-t border-slate-100 mt-8">
+            <div className="text-center pt-8 border-t border-slate-100 mt-8 mb-12">
                 <p className="text-xs text-slate-300 font-medium flex items-center justify-center gap-2">
                     <ShieldCheck className="w-3 h-3" />
                     Bystander Privacy &bull; Consumer Edition
                 </p>
             </div>
+
+            {/* Debug Role Switcher */}
+            <RoleSwitcher />
         </div>
     );
 };

@@ -38,3 +38,17 @@ export interface HomeProfile {
     devices: Device[];
     availableModes: PrivacyMode[];
 }
+
+// User Roles & Negotiation
+export type UserRole = 'host' | 'guest';
+export type RequestType = 'prayer' | 'comfort';
+export type RequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AccessRequest {
+    id: string;
+    deviceId: number;
+    requestType: RequestType;
+    status: RequestStatus;
+    timestamp: number;
+    deviceName: string;
+}
