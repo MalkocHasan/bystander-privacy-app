@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useHomeStore } from '../../store/useHomeStore';
 import type { DeviceType, DeviceStatus, Device, RequestType } from '../../types';
-import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid } from 'lucide-react';
+import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid, Play } from 'lucide-react';
 import { RequestModal } from './RequestModal';
+import { LiveFeedModal } from './LiveFeedModal';
 
 export const DeviceList: React.FC = () => {
     const {
@@ -13,7 +14,9 @@ export const DeviceList: React.FC = () => {
         updateDeviceStatus
     } = useHomeStore();
 
+    // State
     const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+    const [viewingDevice, setViewingDevice] = useState<Device | null>(null);
     const [modalMode, setModalMode] = useState<'request' | 'restore'>('request');
     const [selectedRoom, setSelectedRoom] = useState<string>('All');
 
@@ -47,6 +50,11 @@ export const DeviceList: React.FC = () => {
             setModalMode('restore');
             setSelectedDevice(device);
         }
+    };
+
+    const handleViewFeed = (e: React.MouseEvent, device: Device) => {
+        e.stopPropagation();
+        setViewingDevice(device);
     };
 
     const handleRequestSubmit = (type: RequestType) => {
@@ -153,13 +161,14 @@ export const DeviceList: React.FC = () => {
                     const requestStatus = getRequestStatus(device.id);
                     const config = getStatusConfig(device.type, device.status, requestStatus);
                     const StatusIcon = config.icon;
+                    const canViewFeed = currentUserRole === 'host' && (device.type === 'camera' || device.type === 'sensor');
 
                     return (
                         <div
                             key={device.id}
                             onClick={() => handleDeviceClick(device)}
                             className={`
-                                card-base p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer hover:shadow-md active:scale-95
+                                relative card-base p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer hover:shadow-md active:scale-95 group
                                 ${requestStatus === 'pending' ? 'ring-2 ring-amber-200 dark:ring-amber-500/50' : ''}
                             `}
                         >
@@ -168,14 +177,27 @@ export const DeviceList: React.FC = () => {
                                     <StatusIcon className="w-5 h-5" />
                                 </div>
 
-                                {/* Status Badge */}
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${config.bgColor} ${config.color}`}>
-                                    {config.label}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    {/* View Feed Button */}
+                                    {canViewFeed && (
+                                        <button
+                                            onClick={(e) => handleViewFeed(e, device)}
+                                            className="p-1.5 bg-slate-100 hover:bg-white text-teal-600 hover:text-teal-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-teal-400 rounded-full transition-all shadow-sm border border-slate-200 dark:border-slate-600"
+                                            title="View Live Feed"
+                                        >
+                                            <Play className="w-2.5 h-2.5 fill-current" />
+                                        </button>
+                                    )}
+
+                                    {/* Status Badge */}
+                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${config.bgColor} ${config.color}`}>
+                                        {config.label}
+                                    </span>
+                                </div>
                             </div>
 
                             <div>
-                                <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm leading-tight">
+                                <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm leading-tight pr-4">
                                     {device.name}
                                 </h4>
                                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
@@ -193,7 +215,7 @@ export const DeviceList: React.FC = () => {
                 )}
             </div>
 
-            {/* Negotiation Modal (Handles both Request & Restore) */}
+            {/* Negotiation Modal */}
             <RequestModal
                 isOpen={!!selectedDevice}
                 onClose={() => setSelectedDevice(null)}
@@ -201,6 +223,13 @@ export const DeviceList: React.FC = () => {
                 mode={modalMode}
                 onSubmit={handleRequestSubmit}
                 onRestore={handleRestore}
+            />
+
+            {/* Live Feed Modal */}
+            <LiveFeedModal
+                isOpen={!!viewingDevice}
+                onClose={() => setViewingDevice(null)}
+                device={viewingDevice}
             />
         </>
     );
