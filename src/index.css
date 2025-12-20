@@ -1,104 +1,50 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 @theme {
-  /* Custom color palette for privacy modes */
-  --color-social-50: #f0fdf4;
-  --color-social-100: #dcfce7;
-  --color-social-200: #bbf7d0;
-  --color-social-300: #86efac;
-  --color-social-400: #4ade80;
-  --color-social-500: #22c55e;
-  --color-social-600: #16a34a;
-  --color-social-700: #15803d;
+  --font-sans: 'Poppins', system-ui, sans-serif;
 
-  --color-private-50: #faf5ff;
-  --color-private-100: #f3e8ff;
-  --color-private-200: #e9d5ff;
-  --color-private-300: #d8b4fe;
-  --color-private-400: #c084fc;
-  --color-private-500: #a855f7;
-  --color-private-600: #9333ea;
-  --color-private-700: #7e22ce;
+  /* Trust Palette */
+  --color-trust-50: #f0fdfa;
+  --color-trust-100: #ccfbf1;
+  --color-trust-500: #14b8a6;
+  /* Teal-500 */
+  --color-trust-600: #0d9488;
 
-  --color-security-50: #eff6ff;
-  --color-security-100: #dbeafe;
-  --color-security-200: #bfdbfe;
-  --color-security-300: #93c5fd;
-  --color-security-400: #60a5fa;
-  --color-security-500: #3b82f6;
-  --color-security-600: #2563eb;
-  --color-security-700: #1d4ed8;
+  --color-calm-50: #f8fafc;
+  --color-calm-100: #f1f5f9;
+  --color-calm-500: #64748b;
+  /* Slate-500 */
+  --color-calm-900: #0f172a;
 
-  /* Custom animations */
-  --animate-fade-in: fade-in 0.5s ease-in-out;
-  --animate-slide-up: slide-up 0.4s ease-out;
-  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --color-warm-50: #fffbeb;
+  --color-warm-500: #f59e0b;
+  /* Amber-500 */
+
+  /* Soft Shadows */
+  --shadow-soft-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+  --shadow-soft-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  --shadow-soft-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  --shadow-inner-soft: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slide-up {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes pulse-soft {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.7;
-  }
-}
-
-/* Global Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
+/* Global Reset for Soft UI */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  @apply bg-slate-50 text-slate-800 font-sans antialiased;
+  background-image: radial-gradient(circle at 50% 0%, #f1f5f9 0%, #f8fafc 100%);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+/* Utilities for "Tactile" Feel */
+@layer utilities {
+  .card-base {
+    @apply bg-white rounded-3xl shadow-[var(--shadow-soft-sm)] border border-slate-100;
+  }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-[var(--shadow-soft-lg)] hover:-translate-y-1;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  .btn-touch {
+    @apply active:scale-95 transition-transform duration-100 ease-out;
+  }
 }

@@ -3,105 +3,134 @@ import { useNavigate } from 'react-router-dom';
 import { useHomeStore } from '../../store/useHomeStore';
 import { ModeSelector } from './ModeSelector';
 import { DeviceList } from './DeviceList';
-import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Home, LogOut, Shield } from 'lucide-react';
+import { Home, ShieldCheck, LogOut, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const currentHome = useHomeStore((state) => state.currentHome);
     const disconnect = useHomeStore((state) => state.disconnect);
 
-    // Redirect if not connected
-    React.useEffect(() => {
-        if (!currentHome) {
-            navigate('/');
-        }
-    }, [currentHome, navigate]);
-
     const handleDisconnect = () => {
         disconnect();
         navigate('/');
     };
 
-    if (!currentHome) {
-        return null;
-    }
+    if (!currentHome) return null;
+
+    // Determine Hero State based on active mode
+    const getHeroState = () => {
+        const mode = currentHome.activeMode;
+        switch (mode) {
+            case 'private':
+                return {
+                    icon: ShieldCheck,
+                    title: "You are fully protected",
+                    subtitle: "Sensors & cameras are disabled for your privacy.",
+                    color: "text-teal-700 bg-teal-50 border-teal-100",
+                    iconColor: "text-teal-500 bg-teal-100"
+                };
+            case 'social':
+                return {
+                    icon: CheckCircle2,
+                    title: "Standard Privacy Active",
+                    subtitle: "Cameras are masked, but audio is available.",
+                    color: "text-blue-700 bg-blue-50 border-blue-100",
+                    iconColor: "text-blue-500 bg-blue-100"
+                };
+            case 'security':
+                return {
+                    icon: ShieldAlert,
+                    title: "Security System Active",
+                    subtitle: "Cameras are recording for your safety.",
+                    color: "text-amber-700 bg-amber-50 border-amber-100",
+                    iconColor: "text-amber-500 bg-amber-100"
+                };
+            default:
+                return {
+                    icon: Home,
+                    title: "Welcome Home",
+                    subtitle: "Select a mode to begin.",
+                    color: "text-slate-600 bg-white border-slate-100",
+                    iconColor: "text-slate-400 bg-slate-100"
+                };
+        }
+    };
+
+    const hero = getHeroState();
+    const HeroIcon = hero.icon;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-            {/* Header */}
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div className="max-w-2xl mx-auto px-4 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-md">
-                                <Home className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="font-bold text-gray-900 text-lg">
-                                    {currentHome.homeName}
-                                </h1>
-                                <p className="text-sm text-gray-600">
-                                    Host: {currentHome.ownerName}
-                                </p>
-                            </div>
-                        </div>
+        <div className="min-h-screen px-6 py-8 max-w-lg mx-auto space-y-8 animate-fade-in pb-12">
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDisconnect}
-                            className="!px-3 !py-2"
-                        >
-                            <LogOut className="w-4 h-4" />
-                        </Button>
+            {/* Header / Nav */}
+            <header className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white shadow-soft-sm border border-slate-100 flex items-center justify-center text-slate-500">
+                        <Home className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h1 className="font-bold text-slate-800 text-lg leading-tight">
+                            {currentHome.homeName}
+                        </h1>
+                        <p className="text-xs text-slate-400 font-medium">
+                            Host: {currentHome.ownerName}
+                        </p>
                     </div>
                 </div>
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDisconnect}
+                    className="!rounded-full !w-10 !h-10 !p-0 flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 shadow-soft-sm"
+                >
+                    <LogOut className="w-4 h-4" />
+                </Button>
             </header>
 
-            {/* Main Content */}
-            <main className="max-w-2xl mx-auto px-4 py-6 space-y-6 pb-20">
-                {/* Welcome Card */}
-                <Card variant="gradient" className="animate-fade-in">
-                    <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-                            <Shield className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                            <h2 className="font-bold text-gray-900 mb-1">
-                                Welcome, Guest! 👋
-                            </h2>
-                            <p className="text-sm text-gray-600">
-                                You're connected to <strong>{currentHome.homeName}</strong>.
-                                Choose a privacy mode below that makes you comfortable.
-                            </p>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* Mode Selector */}
-                <div className="animate-slide-up" style={{ animationDelay: '100ms' }}>
-                    <ModeSelector />
+            {/* Status Hero Card */}
+            <section className={`
+                relative overflow-hidden rounded-[2rem] p-8 text-center flex flex-col items-center gap-4 transition-all duration-500 border
+                ${hero.color} shadow-soft-lg
+            `}>
+                <div className={`p-5 rounded-full shadow-inner-soft ${hero.iconColor} mb-2`}>
+                    <HeroIcon className="w-12 h-12" />
                 </div>
-
-                {/* Device List */}
-                <div className="animate-slide-up" style={{ animationDelay: '200ms' }}>
-                    <DeviceList />
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight mb-2">
+                        {hero.title}
+                    </h2>
+                    <p className="text-sm opacity-90 font-medium max-w-[200px] mx-auto leading-relaxed">
+                        {hero.subtitle}
+                    </p>
                 </div>
-            </main>
+            </section>
 
-            {/* Footer Info */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg">
-                <div className="max-w-2xl mx-auto">
-                    <div className="flex items-center justify-between text-xs text-gray-600">
-                        <span>🔒 Privacy-first connection</span>
-                        <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse-soft"></span>
-                            Connected
-                        </span>
-                    </div>
+            {/* Connection Pucks (Mode Selector) */}
+            <section>
+                <div className="flex items-center justify-between mb-4 px-2">
+                    <h3 className="font-bold text-slate-800 text-lg">Privacy Modes</h3>
                 </div>
+                <ModeSelector />
+            </section>
+
+            {/* Device List (Smart Home Grid) */}
+            <section>
+                <div className="flex items-center justify-between mb-4 px-2">
+                    <h3 className="font-bold text-slate-800 text-lg">Devices</h3>
+                    <span className="text-xs font-bold bg-slate-200 text-slate-500 px-2.5 py-1 rounded-full">
+                        {currentHome.devices.length} Connected
+                    </span>
+                </div>
+                <DeviceList />
+            </section>
+
+            {/* Footer */}
+            <div className="text-center pt-8 border-t border-slate-100 mt-8">
+                <p className="text-xs text-slate-300 font-medium flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-3 h-3" />
+                    Bystander Privacy &bull; Consumer Edition
+                </p>
             </div>
         </div>
     );

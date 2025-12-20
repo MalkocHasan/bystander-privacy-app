@@ -19,12 +19,12 @@ export const Button: React.FC<ButtonProps> = ({
     disabled = false,
     className = '',
 }) => {
-    const baseStyles = 'font-semibold rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'font-semibold rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-soft-sm';
 
     const variants = {
-        primary: 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800',
-        secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300',
-        outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50',
+        primary: 'bg-teal-500 text-white hover:bg-teal-600 shadow-teal-500/20 shadow-lg',
+        secondary: 'bg-white text-slate-700 border border-slate-100 hover:bg-slate-50 hover:shadow-md',
+        outline: 'border-2 border-teal-500 text-teal-600 hover:bg-teal-50 bg-transparent shadow-none',
     };
 
     const sizes = {
