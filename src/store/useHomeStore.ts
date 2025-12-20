@@ -46,15 +46,20 @@ const applyModeRules = (devices: Device[], mode: PrivacyModeType, homeProfile: H
             : true;
 
         if (isInAffectedRoom) {
-            // Apply mode rules
-            if (device.type === 'camera' && selectedMode.rules.disableCameras) {
-                newStatus = 'masked';
-            } else if (device.type === 'speaker' && selectedMode.rules.disableSpeakers) {
-                newStatus = 'disabled';
-            } else if (device.type === 'sensor' && selectedMode.rules.disableSensors) {
-                newStatus = 'disabled';
+            const rules = selectedMode.rules;
+            // Apply mode rules with priority: Specific Status > Boolean Toggle
+            if (device.type === 'camera') {
+                if (rules.cameraStatus) newStatus = rules.cameraStatus;
+                else if (rules.disableCameras) newStatus = 'masked';
             }
-            // If rules don't mandate a change, keep active (or whatever previous state was? Assuming active base)
+            else if (device.type === 'speaker') {
+                if (rules.speakerStatus) newStatus = rules.speakerStatus;
+                else if (rules.disableSpeakers) newStatus = 'disabled';
+            }
+            else if (device.type === 'sensor') {
+                if (rules.sensorStatus) newStatus = rules.sensorStatus;
+                else if (rules.disableSensors) newStatus = 'disabled';
+            }
         }
 
         return {

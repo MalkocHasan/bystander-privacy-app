@@ -11,30 +11,37 @@ export const PRIVACY_MODES: PrivacyMode[] = [
         description: 'All sensors active for maximum home security',
         icon: 'Shield',
         color: 'security',
-        rules: {},
+        rules: {
+            // Security implies everything is ON and potentially recording
+            cameraStatus: 'active',
+            sensorStatus: 'active',
+            affectedRooms: ['Living Room', 'Kitchen', 'Entrance', 'Office', 'Bedroom']
+        },
     },
     {
         id: 'social',
         name: 'Social / Guest Mode',
-        description: 'Cameras disabled, speakers active for music and conversation',
+        description: 'Cameras masked, speakers active for music.',
         icon: 'Users',
         color: 'social',
         rules: {
-            disableCameras: true,
-            affectedRooms: ['Living Room', 'Kitchen', 'Dining Room'],
+            disableCameras: true, // Legacy flag
+            cameraStatus: 'masked', // Mask cameras (don't disable fully)
+            speakerStatus: 'active', // Enable smart speakers
+            affectedRooms: ['Living Room', 'Kitchen', 'Entrance', 'Dining Room'],
         },
     },
     {
         id: 'private',
         name: 'Private / Prayer Mode',
-        description: 'All sensors disabled in specific room for complete privacy',
+        description: 'Maximum privacy. All recording devices off.',
         icon: 'Moon',
         color: 'private',
         rules: {
-            disableCameras: true,
-            disableSpeakers: true,
-            disableSensors: true,
-            affectedRooms: ['Living Room'],
+            cameraStatus: 'disabled', // Fully OFF
+            speakerStatus: 'disabled', // Mute/Off
+            sensorStatus: 'disabled',  // No tracking
+            affectedRooms: ['Living Room', 'Bedroom', 'Office', 'Kitchen'],
         },
     },
 ];

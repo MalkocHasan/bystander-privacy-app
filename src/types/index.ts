@@ -23,9 +23,15 @@ export interface PrivacyMode {
     icon: string; // Lucide icon name
     color: string; // Tailwind color class
     rules: {
-        disableCameras?: boolean;
+        disableCameras?: boolean; // Deprecated in favor of cameraStatus? Keeping for backward compat or easy toggle.
         disableSpeakers?: boolean;
         disableSensors?: boolean;
+
+        // Granular Status Overrides
+        cameraStatus?: DeviceStatus;  // e.g. 'masked' vs 'disabled'
+        speakerStatus?: DeviceStatus; // e.g. 'disabled'
+        sensorStatus?: DeviceStatus;
+
         affectedRooms?: string[];
     };
 }
