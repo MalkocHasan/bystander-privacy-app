@@ -82,7 +82,7 @@ export const LiveFeedModal: React.FC<LiveFeedModalProps> = ({
                                 className="w-full h-full object-cover opacity-80"
                             />
                             {/* REC Indicator */}
-                            <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600/80 px-2 py-1 rounded text-xs font-bold text-white animate-pulse">
+                            <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-red-600/80 px-2 py-1 rounded text-xs font-bold text-white animate-pulse">
                                 <div className="w-2 h-2 bg-white rounded-full" />
                                 REC
                             </div>
