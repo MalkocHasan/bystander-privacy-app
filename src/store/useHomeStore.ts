@@ -112,7 +112,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                         }));
                     }
                 } catch (e) { console.error("Sync failed", e); }
-            }, 5000);
+            }, 3000);
 
             set({
                 currentHome: homeProfile,
