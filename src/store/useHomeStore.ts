@@ -1,18 +1,19 @@
 import { create } from 'zustand';
 import type { HomeProfile, PrivacyModeType, Device, DeviceStatus, UserRole, AccessRequest, RequestType, PrivacyMode } from '../types';
 
-import { MOCK_HOMES } from '../data/mockHomes';
+const API_URL = 'http://localhost:3001/api';
 
 interface HomeState {
     currentHome: HomeProfile | null;
     isConnected: boolean;
+    pollingId: any; // To track auto-sync interval
 
     // Negotiation State
     currentUserRole: UserRole;
     pendingRequests: AccessRequest[];
 
     // Actions
-    connectToHome: (homeCode: string) => boolean;
+    connectToHome: (homeCode: string) => Promise<boolean>; // Async now
     setActiveMode: (mode: PrivacyModeType) => void;
     disconnect: () => void;
 
@@ -32,7 +33,7 @@ interface HomeState {
 }
 
 /**
- * Apply privacy mode rules to devices
+ * Apply privacy mode rules to devices (Client-Side Logic for Optimistic Updates)
  */
 const applyModeRules = (devices: Device[], mode: PrivacyModeType, homeProfile: HomeProfile): Device[] => {
     const selectedMode = homeProfile.availableModes.find(m => m.id === mode);
@@ -70,7 +71,7 @@ const applyModeRules = (devices: Device[], mode: PrivacyModeType, homeProfile: H
 };
 
 /**
- * Zustand store for home state management
+ * Zustand store for home state management (Network Enabled)
  */
 export const useHomeStore = create<HomeState>((set, get) => ({
     currentHome: null,
@@ -79,20 +80,52 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     pendingRequests: [],
     isDarkMode: false, // Default to light
 
-    connectToHome: (homeCode: string) => {
-        const homeProfile = MOCK_HOMES[homeCode];
+    // Polling Interval ID
+    pollingId: null,
 
-        if (homeProfile) {
+    connectToHome: async (homeCode: string) => {
+        try {
+            const response = await fetch(`${API_URL}/homes/${homeCode}`);
+            if (!response.ok) return false;
+
+            const homeProfile = await response.json();
+
+            // Clear any existing poll
+            const { pollingId } = get();
+            if (pollingId) clearInterval(pollingId);
+
+            // Start Polling (Auto-Sync every 2 seconds)
+            const newPollingId = setInterval(async () => {
+                const { currentHome } = get();
+                if (!currentHome) return;
+
+                try {
+                    const res = await fetch(`${API_URL}/homes/${homeCode}`);
+                    if (res.ok) {
+                        const updatedData = await res.json();
+                        // Only update if strictly necessary to avoid jitter, 
+                        // but for now simple replacement is fine for the demo.
+                        // We preserve the local 'currentUserRole'
+                        set(state => ({
+                            currentHome: updatedData,
+                            pendingRequests: updatedData.requests || []
+                        }));
+                    }
+                } catch (e) { console.error("Sync failed", e); }
+            }, 5000);
+
             set({
                 currentHome: homeProfile,
                 isConnected: true,
-                pendingRequests: [], // Reset requests on new connection
-                currentUserRole: 'guest'
+                pendingRequests: homeProfile.requests || [],
+                currentUserRole: 'guest',
+                pollingId: newPollingId
             });
             return true;
+        } catch (error) {
+            console.error("Failed to connect to Home Hub:", error);
+            return false;
         }
-
-        return false;
     },
 
     setActiveMode: (mode: PrivacyModeType) => {
@@ -100,6 +133,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
         if (!currentHome) return;
 
+        // 1. Optimistic Client-Side Update
         const updatedDevices = applyModeRules(
             currentHome.devices,
             mode,
@@ -113,13 +147,24 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices,
             },
         });
+
+        // 2. Send Command to Hub API
+        fetch(`${API_URL}/homes/${currentHome.homeCode}/mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode })
+        }).catch(err => console.error("Simulated Network Error:", err));
     },
 
     disconnect: () => {
+        const { pollingId } = get();
+        if (pollingId) clearInterval(pollingId);
+
         set({
             currentHome: null,
             isConnected: false,
             pendingRequests: [],
+            pollingId: null
         });
     },
 
@@ -136,6 +181,18 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         const device = currentHome.devices.find(d => d.id === deviceId);
         if (!device) return;
 
+        // Network Call
+        fetch(`${API_URL}/negotiation/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                homeCode: currentHome.homeCode,
+                deviceId,
+                requestType
+            })
+        });
+
+        // Optimistic UI
         const newRequest: AccessRequest = {
             id: Math.random().toString(36).substr(2, 9),
             deviceId,
@@ -159,12 +216,11 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
         const request = pendingRequests[requestIndex];
 
-        // Update Request Status
+        // Optimistic UI Update: Request Status
         const updatedRequests = [...pendingRequests];
         updatedRequests[requestIndex] = { ...request, status: 'approved' };
 
-        // Update Device Status based on request type
-        // Prayer -> Disabled (Max Privacy), Comfort -> Masked (Soft Privacy)
+        // Optimistic UI Update: Device Status
         const targetStatus: DeviceStatus = request.requestType === 'prayer' ? 'disabled' : 'masked';
 
         const updatedDevices = currentHome.devices.map(d =>
@@ -178,10 +234,23 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices
             }
         });
+
+        // Network Call: Respond to Negotiation (Server handles device update too)
+        fetch(`${API_URL}/negotiation/respond`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                homeCode: currentHome.homeCode,
+                requestId,
+                status: 'approved'
+            })
+        });
     },
 
     denyRequest: (requestId: string) => {
-        const { pendingRequests } = get();
+        const { pendingRequests, currentHome } = get();
+        if (!currentHome) return;
+
         const requestIndex = pendingRequests.findIndex(r => r.id === requestId);
         if (requestIndex === -1) return;
 
@@ -189,6 +258,17 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         updatedRequests[requestIndex] = { ...updatedRequests[requestIndex], status: 'rejected' };
 
         set({ pendingRequests: updatedRequests });
+
+        // Network Call
+        fetch(`${API_URL}/negotiation/respond`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                homeCode: currentHome.homeCode,
+                requestId,
+                status: 'rejected'
+            })
+        });
     },
 
     updateDeviceStatus: (deviceId: number, status: DeviceStatus) => {
@@ -198,6 +278,13 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         const updatedDevices = currentHome.devices.map(d =>
             d.id === deviceId ? { ...d, status } : d
         );
+
+        // Network Call
+        fetch(`${API_URL}/devices/${deviceId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, homeCode: currentHome.homeCode })
+        });
 
         set({
             currentHome: {

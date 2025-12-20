@@ -10,18 +10,22 @@ export const Landing: React.FC = () => {
     const connectToHome = useHomeStore((state) => state.connectToHome);
     const navigate = useNavigate();
 
-    const handleConnect = () => {
+    const handleConnect = async () => {
         if (homeCode.length !== 4) {
             setError('Please enter a 4-digit home code');
             return;
         }
 
-        const success = connectToHome(homeCode);
+        try {
+            const success = await connectToHome(homeCode);
 
-        if (success) {
-            navigate('/dashboard');
-        } else {
-            setError('Code not found. Try 1234 or 5678.');
+            if (success) {
+                navigate('/dashboard');
+            } else {
+                setError('Code not found. Is the server running?');
+            }
+        } catch (e) {
+            setError('Connection failed. Server might be offline.');
         }
     };
 

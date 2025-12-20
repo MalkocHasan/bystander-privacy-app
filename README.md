@@ -76,15 +76,42 @@ src/
 
 ##  Getting Started
 
-### Installation
+### Installation & Simulation Setup
+
+This project includes a **Local Simulation Server** to verify network traffic and real-time state synchronization between Host and Guest.
+
+#### 1. Start the Simulation Hub (Backend)
+This Node.js server mimics the smart home hub, handling latency (200-500ms) and state persistence.
 
 ```bash
-# Install dependencies
+cd server
+npm install
+npm start
+```
+
+#### 2. Run the Client (Frontend)
+Open a new terminal window:
+
+```bash
+# Install frontend dependencies (if first time)
 npm install
 
 # Run development server
 npm run dev
 ```
+
+### 🧪 Live Demo Scenarios
+
+#### Scenario A: Real-Time Sync (Host vs Guest)
+1. Open **Browser Tab A** (Host View) -> Log in with code `1234`.
+2. Open **Browser Tab B** (Guest View) -> Log in with code `1234` (Use Incognito/Private window).
+3. In Tab A (Host), toggle a camera or change the Privacy Mode.
+4. Watch **Tab B (Guest) automatically update** the device status after a few seconds.
+
+#### Scenario B: Network Traffic Analysis
+1. Open Chrome DevTools (`F12`) -> **Network** tab.
+2. Toggle a device status in the app.
+3. Observe the real `POST` request sent to `http://localhost:3001` with the simulated latency. This proves the app sends actual commands over the network!
 
 ### Authentication (Simulated)
 
