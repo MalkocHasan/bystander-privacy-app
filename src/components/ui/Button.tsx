@@ -1,23 +1,18 @@
 import React from 'react';
 
-interface ButtonProps {
-    children: React.ReactNode;
-    onClick?: () => void;
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'outline';
     size?: 'sm' | 'md' | 'lg';
     fullWidth?: boolean;
-    disabled?: boolean;
-    className?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
     children,
-    onClick,
     variant = 'primary',
     size = 'md',
     fullWidth = false,
-    disabled = false,
     className = '',
+    ...props
 }) => {
     const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-soft-sm';
 
@@ -37,9 +32,8 @@ export const Button: React.FC<ButtonProps> = ({
 
     return (
         <button
-            onClick={onClick}
-            disabled={disabled}
             className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${widthStyle} ${className}`}
+            {...props}
         >
             {children}
         </button>
