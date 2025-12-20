@@ -23,6 +23,10 @@ interface HomeState {
     approveRequest: (requestId: string) => void;
     denyRequest: (requestId: string) => void;
     updateDeviceStatus: (deviceId: number, status: DeviceStatus) => void;
+    // CRUD Actions
+    addDevice: (device: Omit<Device, 'id' | 'status'>) => void;
+    editDevice: (deviceId: number, updates: Partial<Omit<Device, 'id'>>) => void;
+    removeDevice: (deviceId: number) => void;
 
     // Admin Config Action
     updateModeRules: (modeId: PrivacyModeType, rules: Partial<PrivacyMode['rules']>) => void;
@@ -294,6 +298,84 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 ...currentHome,
                 devices: updatedDevices
             }
+        });
+    },
+
+    // --- CRUD Actions ---
+
+    addDevice: (deviceData) => {
+        const { currentHome } = get();
+        if (!currentHome) return;
+
+        // Optimistic Update (Temp ID)
+        const newDevice: Device = {
+            id: Date.now(),
+            status: 'active',
+            ...deviceData
+        };
+
+        set({
+            currentHome: {
+                ...currentHome,
+                devices: [...currentHome.devices, newDevice]
+            }
+        });
+
+        // Network Call
+        fetch(`${API_URL}/homes/${currentHome.homeCode}/devices`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(deviceData)
+        }).then(res => res.json()).then(data => {
+            if (data.success && data.device) {
+                // Correct ID from server
+                const { currentHome } = get();
+                if (!currentHome) return;
+                const fixedDevices = currentHome.devices.map(d =>
+                    d.id === newDevice.id ? data.device : d
+                );
+                set({ currentHome: { ...currentHome, devices: fixedDevices } });
+            }
+        });
+    },
+
+    editDevice: (deviceId, updates) => {
+        const { currentHome } = get();
+        if (!currentHome) return;
+
+        const updatedDevices = currentHome.devices.map(d =>
+            d.id === deviceId ? { ...d, ...updates } : d
+        );
+
+        set({
+            currentHome: {
+                ...currentHome,
+                devices: updatedDevices
+            }
+        });
+
+        fetch(`${API_URL}/devices/${deviceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...updates, homeCode: currentHome.homeCode })
+        });
+    },
+
+    removeDevice: (deviceId) => {
+        const { currentHome } = get();
+        if (!currentHome) return;
+
+        const updatedDevices = currentHome.devices.filter(d => d.id !== deviceId);
+
+        set({
+            currentHome: {
+                ...currentHome,
+                devices: updatedDevices
+            }
+        });
+
+        fetch(`${API_URL}/devices/${deviceId}?homeCode=${currentHome.homeCode}`, {
+            method: 'DELETE'
         });
     },
 

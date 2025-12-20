@@ -202,7 +202,73 @@ app.post('/api/negotiation/respond', (req, res) => {
         }
     }
 
+
+
     res.json({ success: true, request });
+});
+
+// --- Device CRUD Endpoints ---
+
+// 6. Create Device
+app.post('/api/homes/:code/devices', (req, res) => {
+    const { code } = req.params;
+    const { name, type, room } = req.body;
+
+    const home = db[code];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    const newDevice = {
+        id: Math.floor(Math.random() * 100000), // Simple ID generation
+        name,
+        type,
+        room,
+        status: 'active' // Default status
+    };
+
+    home.devices.push(newDevice);
+    console.log(`[CRUD] Created Device: ${name} in ${room}`);
+    res.json({ success: true, device: newDevice });
+});
+
+// 7. Update Device
+app.put('/api/devices/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, type, room, homeCode } = req.body; // sending homeCode context helps simple DB search
+
+    const home = db[homeCode];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    const device = home.devices.find(d => d.id == id);
+    if (!device) return res.status(404).json({ error: 'Device not found' });
+
+    // Update fields
+    if (name) device.name = name;
+    if (type) device.type = type;
+    if (room) device.room = room;
+
+    console.log(`[CRUD] Updated Device ${id}: ${device.name}`);
+    res.json({ success: true, device });
+});
+
+// 8. Delete Device
+app.delete('/api/devices/:id', (req, res) => {
+    const { id } = req.params;
+    // We need homeCode to find the array, typically passed in check or body, 
+    // but for DELETE we often put it in query ?homeCode=1234
+    const homeCode = req.query.homeCode;
+
+    const home = db[homeCode || '1234']; // Fallback for demo simplicity
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    const initialLength = home.devices.length;
+    home.devices = home.devices.filter(d => d.id != id);
+
+    if (home.devices.length < initialLength) {
+        console.log(`[CRUD] Deleted Device ${id}`);
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Device not found' });
+    }
 });
 
 app.listen(PORT, () => {
