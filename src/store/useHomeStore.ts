@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { HomeProfile, PrivacyModeType, Device, DeviceStatus, UserRole, AccessRequest, RequestType } from '../types';
+import type { HomeProfile, PrivacyModeType, Device, DeviceStatus, UserRole, AccessRequest, RequestType, PrivacyMode } from '../types';
 
 import { MOCK_HOMES } from '../data/mockHomes';
 
@@ -22,6 +22,13 @@ interface HomeState {
     approveRequest: (requestId: string) => void;
     denyRequest: (requestId: string) => void;
     updateDeviceStatus: (deviceId: number, status: DeviceStatus) => void;
+
+    // Admin Config Action
+    updateModeRules: (modeId: PrivacyModeType, rules: Partial<PrivacyMode['rules']>) => void;
+
+    // Theme
+    isDarkMode: boolean;
+    toggleDarkMode: () => void;
 }
 
 /**
@@ -47,6 +54,7 @@ const applyModeRules = (devices: Device[], mode: PrivacyModeType, homeProfile: H
             } else if (device.type === 'sensor' && selectedMode.rules.disableSensors) {
                 newStatus = 'disabled';
             }
+            // If rules don't mandate a change, keep active (or whatever previous state was? Assuming active base)
         }
 
         return {
@@ -64,6 +72,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     isConnected: false,
     currentUserRole: 'guest',
     pendingRequests: [],
+    isDarkMode: false, // Default to light
 
     connectToHome: (homeCode: string) => {
         const homeProfile = MOCK_HOMES[homeCode];
@@ -191,5 +200,48 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices
             }
         });
+    },
+
+    // --- Admin Config ---
+
+    updateModeRules: (modeId, newRules) => {
+        const { currentHome } = get();
+        if (!currentHome) return;
+
+        // 1. Update the availableModes with new rules
+        const updatedModes = currentHome.availableModes.map(m =>
+            m.id === modeId ? { ...m, rules: { ...m.rules, ...newRules } } : m
+        );
+
+        // 2. Create temp home profile to calculate new device states
+        const tempHome = { ...currentHome, availableModes: updatedModes };
+
+        // 3. Re-apply rules IF we are editing the currently active mode
+        let updatedDevices = currentHome.devices;
+        if (currentHome.activeMode === modeId) {
+            updatedDevices = applyModeRules(currentHome.devices, modeId, tempHome);
+        }
+
+        set({
+            currentHome: {
+                ...tempHome,
+                devices: updatedDevices
+            }
+        });
+    },
+
+    // --- Theme Actions ---
+
+    toggleDarkMode: () => {
+        const { isDarkMode } = get();
+        const newMode = !isDarkMode;
+
+        if (newMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        set({ isDarkMode: newMode });
     }
 }));
