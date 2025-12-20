@@ -221,7 +221,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         updatedRequests[requestIndex] = { ...request, status: 'approved' };
 
         // Optimistic UI Update: Device Status
-        const targetStatus: DeviceStatus = request.requestType === 'prayer' ? 'disabled' : 'masked';
+        let targetStatus: DeviceStatus = 'masked';
+        if (request.requestType === 'prayer') targetStatus = 'disabled';
+        else if (request.requestType === 'restore') targetStatus = 'active';
+        else targetStatus = 'masked';
 
         const updatedDevices = currentHome.devices.map(d =>
             d.id === request.deviceId ? { ...d, status: targetStatus } : d

@@ -171,9 +171,18 @@ app.post('/api/negotiation/respond', (req, res) => {
         const device = home.devices.find(d => d.id === request.deviceId);
         if (device) {
             // Determine target status based on request type
-            // (Mirroring frontend logic or using rules)
-            const targetStatus = request.requestType === 'prayer' ? 'disabled' : 'masked';
+            console.log(`[DEBUG] Processing Request Type: ${request.requestType}`);
+            let targetStatus = 'masked';
 
+            if (request.requestType === 'restore') {
+                targetStatus = 'active';
+            } else if (request.requestType === 'prayer') {
+                targetStatus = 'disabled';
+            } else if (request.requestType === 'comfort') {
+                targetStatus = 'masked';
+            } else {
+                console.warn(`[WARN] Unknown Request Type: ${request.requestType} - Defaulting to masked`);
+            }
             console.log(`[AUTO-ACTION] Updating Device ${device.name} to ${targetStatus}`);
             device.status = targetStatus;
         }

@@ -47,7 +47,7 @@ export interface HomeProfile {
 
 // User Roles & Negotiation
 export type UserRole = 'host' | 'guest';
-export type RequestType = 'prayer' | 'comfort';
+export type RequestType = 'prayer' | 'comfort' | 'restore';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface AccessRequest {

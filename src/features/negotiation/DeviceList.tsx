@@ -65,7 +65,8 @@ export const DeviceList: React.FC = () => {
 
     const handleRestore = () => {
         if (selectedDevice) {
-            updateDeviceStatus(selectedDevice.id, 'active');
+            // Guest must ask for permission to restore (Turn On) a device
+            addRequest(selectedDevice.id, 'restore');
         }
     };
 
