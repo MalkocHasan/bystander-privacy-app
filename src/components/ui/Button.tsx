@@ -19,7 +19,7 @@ export const Button: React.FC<ButtonProps> = ({
     disabled = false,
     className = '',
 }) => {
-    const baseStyles = 'font-semibold rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-soft-sm';
+    const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-soft-sm';
 
     const variants = {
         primary: 'bg-teal-500 text-white hover:bg-teal-600 shadow-teal-500/20 shadow-lg',
