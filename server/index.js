@@ -126,6 +126,42 @@ app.post('/api/homes/:code/mode', (req, res) => {
 
     console.log(`[HUB] Applying Mode: ${mode} to Home ${code}`);
     home.activeMode = mode;
+
+    // Apply Rules to Devices
+    const modeConfig = home.availableModes.find(m => m.id === mode);
+    if (modeConfig && modeConfig.rules) {
+        const rules = modeConfig.rules;
+        let updateCount = 0;
+
+        home.devices.forEach(device => {
+            // Check if device is in affected room
+            const isAffectedRoom = !rules.affectedRooms || rules.affectedRooms.includes(device.room);
+
+            if (isAffectedRoom) {
+                let newStatus = device.status;
+
+                if (device.type === 'camera') {
+                    if (rules.cameraStatus) newStatus = rules.cameraStatus;
+                    else if (rules.disableCameras) newStatus = 'masked';
+                } else if (device.type === 'speaker') {
+                    if (rules.speakerStatus) newStatus = rules.speakerStatus;
+                } else if (device.type === 'sensor') {
+                    if (rules.sensorStatus) newStatus = rules.sensorStatus;
+                }
+
+                // Apply update if changed
+                if (newStatus && newStatus !== device.status) {
+                    device.status = newStatus;
+                    updateCount++;
+                }
+            }
+            // Optional: If switching back to Security (Active), might want to restore? 
+            // The current logic works if the 'active' mode has rules that say 'active'.
+            // In Mock Data, Security Mode rules often default to active.
+        });
+        console.log(`[HUB] Auto-updated ${updateCount} devices based on ${mode} rules.`);
+    }
+
     res.json({ success: true, activeMode: home.activeMode });
 });
 
