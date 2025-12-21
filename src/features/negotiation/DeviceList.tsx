@@ -245,7 +245,7 @@ export const DeviceList: React.FC = () => {
                                     )}
 
                                     {/* View Feed (If not editing) */}
-                                    {!isHost && canViewFeed && (
+                                    {canViewFeed && (
                                         <button
                                             onClick={(e) => handleViewFeed(e, device)}
                                             className="p-1.5 bg-slate-100 hover:bg-white text-teal-600 hover:text-teal-700 rounded-full transition-all shadow-sm border border-slate-200"
