@@ -5,6 +5,7 @@ import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid, Play, Pencil
 import { RequestModal } from './RequestModal';
 import { LiveFeedModal } from './LiveFeedModal';
 import { DeviceFormModal } from './DeviceFormModal';
+import { ConfirmModal } from './ConfirmModal';
 
 export const DeviceList: React.FC = () => {
     const {
@@ -27,6 +28,7 @@ export const DeviceList: React.FC = () => {
     // CRUD State
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDevice, setEditingDevice] = useState<Device | undefined>(undefined);
+    const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
 
     if (!currentHome) return null;
 
@@ -89,8 +91,13 @@ export const DeviceList: React.FC = () => {
 
     const handleDeleteClick = (e: React.MouseEvent, device: Device) => {
         e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete ${device.name}?`)) {
-            removeDevice(device.id);
+        setDeviceToDelete(device);
+    };
+
+    const confirmDelete = () => {
+        if (deviceToDelete) {
+            removeDevice(deviceToDelete.id);
+            setDeviceToDelete(null);
         }
     };
 
@@ -98,7 +105,7 @@ export const DeviceList: React.FC = () => {
         if (editingDevice) {
             editDevice(editingDevice.id, data);
         } else {
-            // @ts-ignore - optimization ignoring strict type for now
+            // @ts-ignore
             addDevice(data);
         }
     };
@@ -226,7 +233,18 @@ export const DeviceList: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    {/* Host Actions */}
+                                    {/* View Feed - Cameras see it (Host Only) */}
+                                    {canViewFeed && (
+                                        <button
+                                            onClick={(e) => handleViewFeed(e, device)}
+                                            className="p-1.5 bg-slate-100 hover:bg-white text-teal-600 hover:text-teal-700 rounded-full transition-all shadow-sm border border-slate-200"
+                                            title="View Live Feed"
+                                        >
+                                            <Play className="w-2.5 h-2.5 fill-current" />
+                                        </button>
+                                    )}
+
+                                    {/* Host Actions: Edit/Delete */}
                                     {isHost && (
                                         <>
                                             <button
@@ -242,16 +260,6 @@ export const DeviceList: React.FC = () => {
                                                 <Trash2 className="w-2.5 h-2.5" />
                                             </button>
                                         </>
-                                    )}
-
-                                    {/* View Feed (If not editing) */}
-                                    {canViewFeed && (
-                                        <button
-                                            onClick={(e) => handleViewFeed(e, device)}
-                                            className="p-1.5 bg-slate-100 hover:bg-white text-teal-600 hover:text-teal-700 rounded-full transition-all shadow-sm border border-slate-200"
-                                        >
-                                            <Play className="w-2.5 h-2.5 fill-current" />
-                                        </button>
                                     )}
 
                                     {/* Status Badge */}
@@ -285,10 +293,6 @@ export const DeviceList: React.FC = () => {
             {/* Modals */}
             <RequestModal
                 isOpen={!!selectedDevice && currentUserRole === 'guest'}
-                // Wait, handleDeviceClick opens it for guest. Logic check needed. Host toggles.
-                // handleDeviceClick sets selectedDevice. If guest, it sets. If host, it toggles.
-                // So checking selectedDevice is enough IF we ensure Host doesn't set selectedDevice for this modal.
-                // Host click logic: updateDeviceStatus -> return. So selectedDevice is NOT set for Host.
                 onClose={() => setSelectedDevice(null)}
                 device={selectedDevice}
                 mode={modalMode}
@@ -307,6 +311,16 @@ export const DeviceList: React.FC = () => {
                 onClose={() => setIsFormOpen(false)}
                 onSubmit={handleFormSubmit}
                 initialData={editingDevice}
+            />
+
+            <ConfirmModal
+                isOpen={!!deviceToDelete}
+                title="Delete Device"
+                message={`Are you sure you want to remove "${deviceToDelete?.name}"? This action cannot be undone.`}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeviceToDelete(null)}
+                confirmText="Delete"
+                isDestructive
             />
         </>
     );
