@@ -284,7 +284,7 @@ export const DeviceList: React.FC = () => {
 
             {/* Modals */}
             <RequestModal
-                isOpen={!!selectedDevice && modalMode !== 'restore' && currentUserRole === 'guest'} // Only guest sees request modal on click? 
+                isOpen={!!selectedDevice && currentUserRole === 'guest'}
                 // Wait, handleDeviceClick opens it for guest. Logic check needed. Host toggles.
                 // handleDeviceClick sets selectedDevice. If guest, it sets. If host, it toggles.
                 // So checking selectedDevice is enough IF we ensure Host doesn't set selectedDevice for this modal.
