@@ -132,4 +132,30 @@ The system distinguishes between three states:
 2.  **Masked**: Device is On, but recording/streaming is blocked (Privacy Preserve).
 3.  **Disabled**: Device is completely powered down (Power Cut).
 
+## Application Screenshots
+
+<img width="1331" height="873" alt="image" src="https://github.com/user-attachments/assets/624af80f-0702-4a4c-b2e1-32ce9983a5f1" />
+
+<img width="864" height="958" alt="image" src="https://github.com/user-attachments/assets/c1ae4053-56d5-47c8-ac14-72c0054614d7" />
+
+<img width="1752" height="898" alt="image" src="https://github.com/user-attachments/assets/6fae1eaf-077e-40df-a641-2d802800c240" />
+
+<img width="1716" height="1090" alt="image" src="https://github.com/user-attachments/assets/1259de6d-2674-4e5f-b22d-cd37a823a87f" />
+
+<img width="1066" height="1077" alt="image" src="https://github.com/user-attachments/assets/3e548efb-682e-47f8-86a9-99681ee77e40" />
+
+<img width="1016" height="1079" alt="image" src="https://github.com/user-attachments/assets/6ced0ca2-18af-44c1-9528-2d1a7364456b" />
+
+<img width="1696" height="876" alt="image" src="https://github.com/user-attachments/assets/883f0fca-933a-416f-bb59-4a570907c95e" />
+
+<img width="845" height="989" alt="image" src="https://github.com/user-attachments/assets/51453490-4e02-41b5-858b-fe535e7655b0" />
+
+<img width="1105" height="746" alt="image" src="https://github.com/user-attachments/assets/7ec7aeb8-5514-4f4d-8e6a-be106bbfb017" />
+
+
+
+
+
+
+
 --
