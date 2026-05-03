@@ -1,0 +1,48 @@
+stateDiagram-v2
+    [*] --> Disconnected
+    Disconnected --> Connecting: enter home code
+    Connecting --> ConnectedGuest: code valid
+    Connecting --> Disconnected: code invalid/error
+
+    state ConnectedGuest {
+        [*] --> GuestDashboard
+        GuestDashboard --> GuestRequesting: tap device
+        GuestRequesting --> GuestPending: send request
+        GuestPending --> GuestDashboard: host approves/denies
+        GuestDashboard --> Disconnected: disconnect
+    }
+
+    state ConnectedHost {
+        [*] --> HostDashboard
+        HostDashboard --> HostModeChange: select mode
+        HostModeChange --> HostDashboard: apply rules
+        HostDashboard --> HostDeviceToggle: tap device
+        HostDeviceToggle --> HostDashboard: status updated
+        HostDashboard --> HostCRUD: add/edit/delete
+        HostCRUD --> HostDashboard: save
+        HostDashboard --> Disconnected: disconnect
+    }
+
+    ConnectedGuest --> ConnectedHost: enter admin code
+    ConnectedHost --> ConnectedGuest: exit admin view
+
+    %% Device-level status transitions
+    state "Device Status" as DeviceStatus {
+        [*] --> Active
+        Active --> Masked: comfort request or social mode
+        Active --> Disabled: prayer request or private mode
+        Masked --> Active: restore request or security mode
+        Disabled --> Active: restore request or security mode
+        Masked --> Disabled: private mode
+        Disabled --> Masked: social mode
+    }
+
+    %% Request lifecycle
+    state "Request Lifecycle" as RequestLifecycle {
+        [*] --> None
+        None --> Pending: guest submits
+        Pending --> Approved: host approves
+        Pending --> Rejected: host denies
+        Approved --> None: resolved
+        Rejected --> None: cleared
+    }

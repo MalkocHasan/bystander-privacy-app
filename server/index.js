@@ -59,18 +59,24 @@ const db = {
         ownerName: 'John Smith',
         activeMode: 'security',
         availableModes: PRIVACY_MODES, // <--- CRITICAL FIX
+        auditLogs: [],
+        scenes: [
+            { id: 'scene-movie', name: 'Movie Night' },
+            { id: 'scene-quiet', name: 'Quiet Hours' },
+            { id: 'scene-away', name: 'Away Mode' },
+        ],
         devices: [
-            { id: 1, name: 'Living Room Cam', type: 'camera', status: 'active', room: 'Living Room' },
-            { id: 2, name: 'Alexa Echo', type: 'speaker', status: 'active', room: 'Living Room' },
-            { id: 5, name: 'Motion Detector', type: 'sensor', status: 'active', room: 'Living Room' },
-            { id: 4, name: 'Kitchen Nest Hub', type: 'camera', status: 'active', room: 'Kitchen' },
-            { id: 7, name: 'Smart Fridge Cam', type: 'camera', status: 'active', room: 'Kitchen' },
-            { id: 3, name: 'Front Door Lock', type: 'lock', status: 'active', room: 'Entrance' },
-            { id: 8, name: 'Video Doorbell', type: 'camera', status: 'active', room: 'Entrance' },
-            { id: 9, name: 'Baby Monitor', type: 'camera', status: 'active', room: 'Bedroom' },
-            { id: 10, name: 'Bedroom Speaker', type: 'speaker', status: 'active', room: 'Bedroom' },
-            { id: 11, name: 'Office Webcam', type: 'camera', status: 'active', room: 'Office' },
-            { id: 12, name: 'Work Assistant', type: 'speaker', status: 'active', room: 'Office' },
+            { id: 1, name: 'Living Room Cam', type: 'camera', status: 'active', room: 'Living Room', sceneIds: ['scene-movie', 'scene-away'] },
+            { id: 2, name: 'Alexa Echo', type: 'speaker', status: 'active', room: 'Living Room', sceneIds: ['scene-movie', 'scene-quiet'] },
+            { id: 5, name: 'Motion Detector', type: 'sensor', status: 'active', room: 'Living Room', sceneIds: ['scene-away'] },
+            { id: 4, name: 'Kitchen Nest Hub', type: 'camera', status: 'active', room: 'Kitchen', sceneIds: ['scene-away'] },
+            { id: 7, name: 'Smart Fridge Cam', type: 'camera', status: 'active', room: 'Kitchen', sceneIds: ['scene-away'] },
+            { id: 3, name: 'Front Door Lock', type: 'lock', status: 'active', room: 'Entrance', sceneIds: ['scene-away'] },
+            { id: 8, name: 'Video Doorbell', type: 'camera', status: 'active', room: 'Entrance', sceneIds: ['scene-away'] },
+            { id: 9, name: 'Baby Monitor', type: 'camera', status: 'active', room: 'Bedroom', sceneIds: ['scene-quiet'] },
+            { id: 10, name: 'Bedroom Speaker', type: 'speaker', status: 'active', room: 'Bedroom', sceneIds: ['scene-quiet'] },
+            { id: 11, name: 'Office Webcam', type: 'camera', status: 'active', room: 'Office', sceneIds: ['scene-away'] },
+            { id: 12, name: 'Work Assistant', type: 'speaker', status: 'active', room: 'Office', sceneIds: ['scene-quiet'] },
         ],
         requests: []
     },
@@ -81,13 +87,46 @@ const db = {
         activeMode: 'security',
         availableModes: PRIVACY_MODES,
         devices: [
-            { id: 101, name: 'Main Camera', type: 'camera', status: 'active', room: 'Living Room' },
-            { id: 102, name: 'Google Home', type: 'speaker', status: 'active', room: 'Living Room' },
-            { id: 103, name: 'Smart Lock', type: 'lock', status: 'active', room: 'Entrance' },
-            { id: 104, name: 'Bedroom Cam', type: 'camera', status: 'active', room: 'Bedroom' }
+            { id: 101, name: 'Main Camera', type: 'camera', status: 'active', room: 'Living Room', sceneIds: ['scene-party', 'scene-away'] },
+            { id: 102, name: 'Google Home', type: 'speaker', status: 'active', room: 'Living Room', sceneIds: ['scene-party'] },
+            { id: 103, name: 'Smart Lock', type: 'lock', status: 'active', room: 'Entrance', sceneIds: ['scene-away'] },
+            { id: 104, name: 'Bedroom Cam', type: 'camera', status: 'active', room: 'Bedroom', sceneIds: ['scene-away'] }
         ],
+        scenes: [
+            { id: 'scene-party', name: 'Party' },
+            { id: 'scene-away', name: 'Away Mode' }
+        ],
+        auditLogs: [],
         requests: []
     }
+};
+
+const MAX_AUDIT_LOGS = 100;
+
+const addAuditLog = (home, entry) => {
+    if (!home.auditLogs) home.auditLogs = [];
+    const normalized = {
+        id: entry.id || Math.random().toString(36).substr(2, 9),
+        type: entry.type || 'device',
+        message: entry.message || 'Activity recorded',
+        timestamp: entry.timestamp || Date.now(),
+        actorRole: entry.actorRole,
+        deviceId: entry.deviceId,
+        deviceName: entry.deviceName,
+        modeId: entry.modeId
+    };
+    home.auditLogs.unshift(normalized);
+    home.auditLogs = home.auditLogs.slice(0, MAX_AUDIT_LOGS);
+    return normalized;
+};
+
+const normalizeSceneIds = (sceneIds) => {
+    if (!sceneIds) return [];
+    if (Array.isArray(sceneIds)) return sceneIds.filter(Boolean);
+    if (typeof sceneIds === 'string') {
+        return sceneIds.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
 };
 
 // --- Middleware ---
@@ -115,6 +154,21 @@ app.get('/api/homes/:code', (req, res) => {
     } else {
         res.status(404).json({ error: 'Home not found' });
     }
+});
+
+app.get('/api/homes/:code/audit-logs', (req, res) => {
+    const home = db[req.params.code];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    res.json({ logs: home.auditLogs || [] });
+});
+
+app.post('/api/homes/:code/audit-logs', (req, res) => {
+    const home = db[req.params.code];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    const entry = addAuditLog(home, req.body || {});
+    res.json({ success: true, entry });
 });
 
 app.post('/api/homes/:code/mode', (req, res) => {
@@ -248,7 +302,7 @@ app.post('/api/negotiation/respond', (req, res) => {
 // 6. Create Device
 app.post('/api/homes/:code/devices', (req, res) => {
     const { code } = req.params;
-    const { name, type, room } = req.body;
+    const { name, type, room, sceneIds } = req.body;
 
     const home = db[code];
     if (!home) return res.status(404).json({ error: 'Home not found' });
@@ -258,7 +312,8 @@ app.post('/api/homes/:code/devices', (req, res) => {
         name,
         type,
         room,
-        status: 'active' // Default status
+        status: 'active', // Default status
+        sceneIds: normalizeSceneIds(sceneIds)
     };
 
     home.devices.push(newDevice);
@@ -269,7 +324,7 @@ app.post('/api/homes/:code/devices', (req, res) => {
 // 7. Update Device
 app.put('/api/devices/:id', (req, res) => {
     const { id } = req.params;
-    const { name, type, room, homeCode } = req.body; // sending homeCode context helps simple DB search
+    const { name, type, room, homeCode, sceneIds } = req.body; // sending homeCode context helps simple DB search
 
     const home = db[homeCode];
     if (!home) return res.status(404).json({ error: 'Home not found' });
@@ -281,6 +336,7 @@ app.put('/api/devices/:id', (req, res) => {
     if (name) device.name = name;
     if (type) device.type = type;
     if (room) device.room = room;
+    if (sceneIds !== undefined) device.sceneIds = normalizeSceneIds(sceneIds);
 
     console.log(`[CRUD] Updated Device ${id}: ${device.name}`);
     res.json({ success: true, device });

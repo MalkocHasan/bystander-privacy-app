@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
-import type { Device, DeviceType } from '../../types';
+import type { Device, DeviceType, Scene } from '../../types';
 import { X, Plus, Save } from 'lucide-react';
 
 interface DeviceFormModalProps {
@@ -8,6 +8,8 @@ interface DeviceFormModalProps {
     onClose: () => void;
     onSubmit: (data: Partial<Device>) => void;
     initialData?: Device;
+    scenes: Scene[];
+    rooms: string[];
 }
 
 const DEVICE_TYPES: DeviceType[] = ['camera', 'speaker', 'sensor', 'lock', 'light'];
@@ -16,32 +18,73 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({
     isOpen,
     onClose,
     onSubmit,
-    initialData
+    initialData,
+    scenes,
+    rooms
 }) => {
     const [name, setName] = useState('');
-    const [room, setRoom] = useState('');
+    const [roomChoice, setRoomChoice] = useState('');
+    const [newRoom, setNewRoom] = useState('');
+    const [roomError, setRoomError] = useState('');
     const [type, setType] = useState<DeviceType>('light');
+    const [sceneIds, setSceneIds] = useState<string[]>([]);
+
+    const wasOpenRef = useRef(false);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !wasOpenRef.current) {
             if (initialData) {
                 setName(initialData.name);
-                setRoom(initialData.room);
+                if (rooms.includes(initialData.room)) {
+                    setRoomChoice(initialData.room);
+                    setNewRoom('');
+                } else {
+                    setRoomChoice('__new');
+                    setNewRoom(initialData.room);
+                }
                 setType(initialData.type);
+                setSceneIds(initialData.sceneIds || []);
             } else {
                 setName('');
-                setRoom('');
+                setRoomChoice(rooms[0] || '__new');
+                setNewRoom('');
                 setType('light');
+                setSceneIds([]);
             }
+            setRoomError('');
         }
-    }, [isOpen, initialData]);
+
+        if (!isOpen && wasOpenRef.current) {
+            setRoomError('');
+        }
+
+        wasOpenRef.current = isOpen;
+    }, [isOpen, initialData, rooms]);
 
     if (!isOpen) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit({ name, room, type });
+        const selectedRoom = roomChoice === '__new' ? newRoom.trim() : roomChoice;
+        if (!selectedRoom) {
+            setRoomError('Please enter a room name');
+            return;
+        }
+        onSubmit({
+            name,
+            room: selectedRoom,
+            type,
+            sceneIds
+        });
         onClose();
+    };
+
+    const toggleScene = (sceneId: string) => {
+        setSceneIds((prev) => (
+            prev.includes(sceneId)
+                ? prev.filter((id) => id !== sceneId)
+                : [...prev, sceneId]
+        ));
     };
 
     return (
@@ -75,14 +118,36 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({
                     {/* Room */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Room</label>
-                        <input
-                            type="text"
+                        <select
                             required
-                            value={room}
-                            onChange={(e) => setRoom(e.target.value)}
-                            placeholder="e.g. Kitchen"
+                            value={roomChoice}
+                            onChange={(e) => {
+                                setRoomChoice(e.target.value);
+                                setRoomError('');
+                            }}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-bold text-slate-800"
-                        />
+                        >
+                            {rooms.map((existingRoom) => (
+                                <option key={existingRoom} value={existingRoom}>{existingRoom}</option>
+                            ))}
+                            <option value="__new">Add new room...</option>
+                        </select>
+                        {roomChoice === '__new' && (
+                            <input
+                                type="text"
+                                required
+                                value={newRoom}
+                                onChange={(e) => {
+                                    setNewRoom(e.target.value);
+                                    setRoomError('');
+                                }}
+                                placeholder="e.g. Kitchen"
+                                className="mt-2 w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-bold text-slate-800"
+                            />
+                        )}
+                        {roomError && (
+                            <p className="mt-2 text-xs font-semibold text-rose-500">{roomError}</p>
+                        )}
                     </div>
 
                     {/* Type */}
@@ -103,6 +168,29 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({
                                     `}
                                 >
                                     {t.charAt(0).toUpperCase() + t.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Scenes */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Scenes</label>
+                        <div className="flex flex-wrap gap-2">
+                            {scenes.map((scene) => (
+                                <button
+                                    key={scene.id}
+                                    type="button"
+                                    onClick={() => toggleScene(scene.id)}
+                                    className={`
+                                        px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                                        ${sceneIds.includes(scene.id)
+                                            ? 'bg-teal-500 text-white border-teal-500 shadow-md'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                        }
+                                    `}
+                                >
+                                    {scene.name}
                                 </button>
                             ))}
                         </div>

@@ -1,5 +1,17 @@
 import { create } from 'zustand';
-import type { HomeProfile, PrivacyModeType, Device, DeviceStatus, UserRole, AccessRequest, RequestType, PrivacyMode } from '../types';
+import type {
+    HomeProfile,
+    PrivacyModeType,
+    Device,
+    DeviceStatus,
+    UserRole,
+    AccessRequest,
+    RequestType,
+    PrivacyMode,
+    DeviceHealth,
+    AuditLogEntry,
+    AuditLogType
+} from '../types';
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -7,10 +19,17 @@ interface HomeState {
     currentHome: HomeProfile | null;
     isConnected: boolean;
     pollingId: any; // To track auto-sync interval
+    telemetryId: any; // To track simulated device health updates
+
+    deviceTelemetry: Record<number, { lastSeen: number; health: DeviceHealth }>;
 
     // Negotiation State
     currentUserRole: UserRole;
     pendingRequests: AccessRequest[];
+
+    // Audit Log
+    auditLog: AuditLogEntry[];
+    addAuditLog: (entry: AuditLogEntry) => void;
 
     // Actions
     connectToHome: (homeCode: string) => Promise<boolean>; // Async now
@@ -35,6 +54,59 @@ interface HomeState {
     isDarkMode: boolean;
     toggleDarkMode: () => void;
 }
+
+const HEALTH_THRESHOLDS_MS = {
+    healthy: 10000,
+    degraded: 20000,
+};
+
+const MAX_AUDIT_ENTRIES = 50;
+
+const deriveHealth = (lastSeen: number, now: number): DeviceHealth => {
+    const age = now - lastSeen;
+    if (age <= HEALTH_THRESHOLDS_MS.healthy) return 'healthy';
+    if (age <= HEALTH_THRESHOLDS_MS.degraded) return 'degraded';
+    return 'offline';
+};
+
+const reconcileTelemetry = (
+    devices: Device[],
+    existing: Record<number, { lastSeen: number; health: DeviceHealth }> = {},
+    now: number = Date.now()
+) => {
+    const next: Record<number, { lastSeen: number; health: DeviceHealth }> = {};
+    devices.forEach((device) => {
+        const previous = existing[device.id];
+        const lastSeen = previous?.lastSeen ?? now - Math.floor(Math.random() * 15000);
+        next[device.id] = {
+            lastSeen,
+            health: deriveHealth(lastSeen, now),
+        };
+    });
+    return next;
+};
+
+const hydrateRequests = (requests: AccessRequest[], devices: Device[]) => (
+    requests.map((request) => {
+        const device = devices.find((d) => d.id === request.deviceId);
+        return {
+            ...request,
+            deviceName: request.deviceName || device?.name || 'Unknown device'
+        };
+    })
+);
+
+const createAuditEntry = (
+    type: AuditLogType,
+    message: string,
+    extras: Partial<AuditLogEntry> = {}
+): AuditLogEntry => ({
+    id: Math.random().toString(36).substr(2, 9),
+    type,
+    message,
+    timestamp: Date.now(),
+    ...extras
+});
 
 /**
  * Apply privacy mode rules to devices (Client-Side Logic for Optimistic Updates)
@@ -84,8 +156,26 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     pendingRequests: [],
     isDarkMode: false, // Default to light
 
+    deviceTelemetry: {},
+    auditLog: [],
+    addAuditLog: (entry) => {
+        set(state => ({
+            auditLog: [entry, ...state.auditLog].slice(0, MAX_AUDIT_ENTRIES)
+        }));
+
+        const { currentHome } = get();
+        if (!currentHome) return;
+
+        fetch(`${API_URL}/homes/${currentHome.homeCode}/audit-logs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entry)
+        }).catch(err => console.error('Audit log sync failed:', err));
+    },
+
     // Polling Interval ID
     pollingId: null,
+    telemetryId: null,
 
     connectToHome: async (homeCode: string) => {
         try {
@@ -94,9 +184,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
             const homeProfile = await response.json();
 
-            // Clear any existing poll
-            const { pollingId } = get();
+            // Clear any existing poll or telemetry
+            const { pollingId, telemetryId } = get();
             if (pollingId) clearInterval(pollingId);
+            if (telemetryId) clearInterval(telemetryId);
 
             // Start Polling (Auto-Sync every 2 seconds)
             const newPollingId = setInterval(async () => {
@@ -112,19 +203,52 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                         // We preserve the local 'currentUserRole'
                         set(state => ({
                             currentHome: updatedData,
-                            pendingRequests: updatedData.requests || []
+                            pendingRequests: hydrateRequests(updatedData.requests || [], updatedData.devices || []),
+                            deviceTelemetry: reconcileTelemetry(updatedData.devices, state.deviceTelemetry),
+                            auditLog: (updatedData.auditLogs || state.auditLog).slice(0, MAX_AUDIT_ENTRIES)
                         }));
                     }
                 } catch (e) { console.error("Sync failed", e); }
             }, 3000);
 
+            const newTelemetryId = setInterval(() => {
+                const { currentHome, deviceTelemetry } = get();
+                if (!currentHome) return;
+
+                const now = Date.now();
+                const updatedTelemetry: Record<number, { lastSeen: number; health: DeviceHealth }> = { ...deviceTelemetry };
+
+                currentHome.devices.forEach((device) => {
+                    const previous = updatedTelemetry[device.id];
+                    const shouldPing = Math.random() < 0.75;
+                    const lastSeen = shouldPing ? now : previous?.lastSeen ?? now;
+                    updatedTelemetry[device.id] = {
+                        lastSeen,
+                        health: deriveHealth(lastSeen, now)
+                    };
+                });
+
+                set({ deviceTelemetry: updatedTelemetry });
+            }, 5000);
+
             set({
                 currentHome: homeProfile,
                 isConnected: true,
-                pendingRequests: homeProfile.requests || [],
+                pendingRequests: hydrateRequests(homeProfile.requests || [], homeProfile.devices || []),
                 currentUserRole: 'guest',
-                pollingId: newPollingId
+                pollingId: newPollingId,
+                telemetryId: newTelemetryId,
+                deviceTelemetry: reconcileTelemetry(homeProfile.devices),
+                auditLog: (homeProfile.auditLogs || []).slice(0, MAX_AUDIT_ENTRIES)
             });
+
+            get().addAuditLog(
+                createAuditEntry(
+                    'connection',
+                    `Connected to ${homeProfile.homeName}`,
+                    { actorRole: 'guest' }
+                )
+            );
             return true;
         } catch (error) {
             console.error("Failed to connect to Home Hub:", error);
@@ -152,6 +276,14 @@ export const useHomeStore = create<HomeState>((set, get) => ({
             },
         });
 
+        get().addAuditLog(
+            createAuditEntry(
+                'mode',
+                `Mode set to ${mode}`,
+                { actorRole: get().currentUserRole, modeId: mode }
+            )
+        );
+
         // 2. Send Command to Hub API
         fetch(`${API_URL}/homes/${currentHome.homeCode}/mode`, {
             method: 'POST',
@@ -161,14 +293,18 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     },
 
     disconnect: () => {
-        const { pollingId } = get();
+        const { pollingId, telemetryId } = get();
         if (pollingId) clearInterval(pollingId);
+        if (telemetryId) clearInterval(telemetryId);
 
         set({
             currentHome: null,
             isConnected: false,
             pendingRequests: [],
-            pollingId: null
+            pollingId: null,
+            telemetryId: null,
+            deviceTelemetry: {},
+            auditLog: []
         });
     },
 
@@ -209,6 +345,14 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         set(state => ({
             pendingRequests: [...state.pendingRequests, newRequest]
         }));
+
+        get().addAuditLog(
+            createAuditEntry(
+                'request',
+                `Requested ${requestType} for ${device.name}`,
+                { actorRole: get().currentUserRole, deviceId, deviceName: device.name }
+            )
+        );
     },
 
     approveRequest: (requestId: string) => {
@@ -219,10 +363,12 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         if (requestIndex === -1) return;
 
         const request = pendingRequests[requestIndex];
+        const device = currentHome.devices.find(d => d.id === request.deviceId);
+        const deviceName = request.deviceName || device?.name || 'Unknown device';
 
         // Optimistic UI Update: Request Status
         const updatedRequests = [...pendingRequests];
-        updatedRequests[requestIndex] = { ...request, status: 'approved' };
+        updatedRequests[requestIndex] = { ...request, status: 'approved', deviceName };
 
         // Optimistic UI Update: Device Status
         let targetStatus: DeviceStatus = 'masked';
@@ -241,6 +387,14 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices
             }
         });
+
+        get().addAuditLog(
+            createAuditEntry(
+                'request',
+                `Approved ${request.requestType} for ${deviceName}`,
+                { actorRole: get().currentUserRole, deviceId: request.deviceId, deviceName }
+            )
+        );
 
         // Network Call: Respond to Negotiation (Server handles device update too)
         fetch(`${API_URL}/negotiation/respond`, {
@@ -262,9 +416,19 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         if (requestIndex === -1) return;
 
         const updatedRequests = [...pendingRequests];
-        updatedRequests[requestIndex] = { ...updatedRequests[requestIndex], status: 'rejected' };
+        const device = currentHome.devices.find(d => d.id === updatedRequests[requestIndex].deviceId);
+        const deviceName = updatedRequests[requestIndex].deviceName || device?.name || 'Unknown device';
+        updatedRequests[requestIndex] = { ...updatedRequests[requestIndex], status: 'rejected', deviceName };
 
         set({ pendingRequests: updatedRequests });
+
+        get().addAuditLog(
+            createAuditEntry(
+                'request',
+                `Denied ${updatedRequests[requestIndex].requestType} for ${deviceName}`,
+                { actorRole: get().currentUserRole, deviceId: updatedRequests[requestIndex].deviceId, deviceName }
+            )
+        );
 
         // Network Call
         fetch(`${API_URL}/negotiation/respond`, {
@@ -299,6 +463,15 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices
             }
         });
+
+        const device = currentHome.devices.find(d => d.id === deviceId);
+        get().addAuditLog(
+            createAuditEntry(
+                'device',
+                `Set ${device?.name || 'device'} to ${status}`,
+                { actorRole: get().currentUserRole, deviceId, deviceName: device?.name }
+            )
+        );
     },
 
     // --- CRUD Actions ---
@@ -314,12 +487,24 @@ export const useHomeStore = create<HomeState>((set, get) => ({
             ...deviceData
         };
 
-        set({
+        set((state) => ({
             currentHome: {
                 ...currentHome,
                 devices: [...currentHome.devices, newDevice]
+            },
+            deviceTelemetry: {
+                ...state.deviceTelemetry,
+                [newDevice.id]: { lastSeen: Date.now(), health: 'healthy' }
             }
-        });
+        }));
+
+        get().addAuditLog(
+            createAuditEntry(
+                'device',
+                `Added ${newDevice.name}`,
+                { actorRole: get().currentUserRole, deviceId: newDevice.id, deviceName: newDevice.name }
+            )
+        );
 
         // Network Call
         fetch(`${API_URL}/homes/${currentHome.homeCode}/devices`, {
@@ -334,7 +519,16 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 const fixedDevices = currentHome.devices.map(d =>
                     d.id === newDevice.id ? data.device : d
                 );
-                set({ currentHome: { ...currentHome, devices: fixedDevices } });
+                set((state) => {
+                    const updatedTelemetry = { ...state.deviceTelemetry };
+                    const previous = updatedTelemetry[newDevice.id];
+                    delete updatedTelemetry[newDevice.id];
+                    updatedTelemetry[data.device.id] = previous || { lastSeen: Date.now(), health: 'healthy' };
+                    return {
+                        currentHome: { ...currentHome, devices: fixedDevices },
+                        deviceTelemetry: updatedTelemetry
+                    };
+                });
             }
         });
     },
@@ -354,6 +548,15 @@ export const useHomeStore = create<HomeState>((set, get) => ({
             }
         });
 
+        const device = currentHome.devices.find(d => d.id === deviceId);
+        get().addAuditLog(
+            createAuditEntry(
+                'device',
+                `Updated ${device?.name || 'device'}`,
+                { actorRole: get().currentUserRole, deviceId, deviceName: device?.name }
+            )
+        );
+
         fetch(`${API_URL}/devices/${deviceId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -365,14 +568,29 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         const { currentHome } = get();
         if (!currentHome) return;
 
+        const device = currentHome.devices.find(d => d.id === deviceId);
+
         const updatedDevices = currentHome.devices.filter(d => d.id !== deviceId);
 
-        set({
-            currentHome: {
-                ...currentHome,
-                devices: updatedDevices
-            }
+        set((state) => {
+            const updatedTelemetry = { ...state.deviceTelemetry };
+            delete updatedTelemetry[deviceId];
+            return {
+                currentHome: {
+                    ...currentHome,
+                    devices: updatedDevices
+                },
+                deviceTelemetry: updatedTelemetry
+            };
         });
+
+        get().addAuditLog(
+            createAuditEntry(
+                'device',
+                `Removed ${device?.name || 'device'}`,
+                { actorRole: get().currentUserRole, deviceId, deviceName: device?.name }
+            )
+        );
 
         fetch(`${API_URL}/devices/${deviceId}?homeCode=${currentHome.homeCode}`, {
             method: 'DELETE'
@@ -405,6 +623,14 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 devices: updatedDevices
             }
         });
+
+        get().addAuditLog(
+            createAuditEntry(
+                'admin',
+                `Updated rules for ${modeId} mode`,
+                { actorRole: get().currentUserRole, modeId }
+            )
+        );
     },
 
     // --- Theme Actions ---

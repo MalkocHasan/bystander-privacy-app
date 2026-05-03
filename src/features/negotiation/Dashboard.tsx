@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useHomeStore } from '../../store/useHomeStore';
 import { ModeSelector } from './ModeSelector';
 import { DeviceList } from './DeviceList';
+import { AuditLogPanel } from './AuditLogPanel';
 import { Button } from '../../components/ui/Button';
 import { Home, ShieldCheck, LogOut, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { AdminNotification } from './AdminNotification';
@@ -138,6 +139,9 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <DeviceList />
             </section>
+
+            {/* Audit Log */}
+            <AuditLogPanel />
 
             {/* Footer */}
             <div className="text-center pt-8 border-t border-slate-100 mt-8 mb-12">

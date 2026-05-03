@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useHomeStore } from '../../store/useHomeStore';
-import type { DeviceType, DeviceStatus, Device, RequestType } from '../../types';
+import type { DeviceType, DeviceStatus, Device, RequestType, DeviceHealth } from '../../types';
 import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid, Play, Pencil, Trash2, Plus } from 'lucide-react';
 import { RequestModal } from './RequestModal';
 import { LiveFeedModal } from './LiveFeedModal';
@@ -16,14 +16,16 @@ export const DeviceList: React.FC = () => {
         updateDeviceStatus,
         addDevice,
         editDevice,
-        removeDevice
+        removeDevice,
+        deviceTelemetry
     } = useHomeStore();
 
     // State
     const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
     const [viewingDevice, setViewingDevice] = useState<Device | null>(null);
     const [modalMode, setModalMode] = useState<'request' | 'restore'>('request');
-    const [selectedRoom, setSelectedRoom] = useState<string>('All');
+    const [groupMode, setGroupMode] = useState<'room' | 'scene'>('room');
+    const [selectedGroup, setSelectedGroup] = useState<string>('all');
 
     // CRUD State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -32,12 +34,37 @@ export const DeviceList: React.FC = () => {
 
     if (!currentHome) return null;
 
-    // --- Rooms Logic ---
-    const rooms = ['All', ...new Set(currentHome.devices.map(d => d.room))];
+    // --- Grouping Logic ---
+    const groups = useMemo(() => {
+        const base = [{ id: 'all', label: 'All' }];
 
-    const filteredDevices = currentHome.devices.filter(device =>
-        selectedRoom === 'All' || device.room === selectedRoom
-    );
+        if (groupMode === 'room') {
+            const rooms = Array.from(new Set(currentHome.devices.map(d => d.room)));
+            return [...base, ...rooms.map(room => ({ id: room, label: room }))];
+        }
+
+        const scenes = currentHome.scenes.map(scene => ({ id: scene.id, label: scene.name }));
+        const hasUnassigned = currentHome.devices.some(device => !device.sceneIds || device.sceneIds.length === 0);
+        return hasUnassigned ? [...base, ...scenes, { id: 'unassigned', label: 'Unassigned' }] : [...base, ...scenes];
+    }, [currentHome.devices, currentHome.scenes, groupMode]);
+
+    const filteredDevices = currentHome.devices.filter((device) => {
+        if (selectedGroup === 'all') return true;
+        if (groupMode === 'room') return device.room === selectedGroup;
+        if (selectedGroup === 'unassigned') return !device.sceneIds || device.sceneIds.length === 0;
+        return !!device.sceneIds?.includes(selectedGroup);
+    });
+
+    const rooms = Array.from(new Set(currentHome.devices.map(d => d.room)));
+
+    const selectedGroupLabel = groups.find((group) => group.id === selectedGroup)?.label || 'All';
+
+    useEffect(() => {
+        const isValid = groups.some((group) => group.id === selectedGroup);
+        if (!isValid) {
+            setSelectedGroup('all');
+        }
+    }, [groups, selectedGroup]);
 
     const handleDeviceClick = (device: Device) => {
         // HOST: Full Control (Toggle)
@@ -174,39 +201,79 @@ export const DeviceList: React.FC = () => {
         };
     };
 
+    const getHealthConfig = (health?: DeviceHealth) => {
+        if (health === 'offline') {
+            return { label: 'Offline', color: 'text-rose-500', dot: 'bg-rose-500' };
+        }
+        if (health === 'degraded') {
+            return { label: 'Degraded', color: 'text-amber-600', dot: 'bg-amber-500' };
+        }
+        return { label: 'Healthy', color: 'text-emerald-600', dot: 'bg-emerald-500' };
+    };
+
+    const formatLastSeen = (lastSeen?: number) => {
+        if (!lastSeen) return 'Unknown';
+        const seconds = Math.max(0, Math.floor((Date.now() - lastSeen) / 1000));
+        if (seconds < 60) return `${seconds}s ago`;
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m ago`;
+    };
+
     return (
         <>
-            <div className="flex items-center justify-between mb-4">
-                {/* Room Tabs */}
-                <div className="flex overflow-x-auto pb-1 gap-2 scrollbar-hide -mx-2 px-2 flex-1">
-                    {rooms.map(room => (
+            <div className="flex flex-col gap-3 mb-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex gap-2">
+                        {(['room', 'scene'] as const).map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => {
+                                    setGroupMode(mode);
+                                    setSelectedGroup('all');
+                                }}
+                                className={`
+                                    px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border
+                                    ${groupMode === mode
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                    }
+                                `}
+                            >
+                                {mode}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Add Device Button (Host Only) */}
+                    {currentUserRole === 'host' && (
                         <button
-                            key={room}
-                            onClick={() => setSelectedRoom(room)}
+                            onClick={handleAddClick}
+                            className="ml-2 w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"
+                            title="Add Device"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex overflow-x-auto pb-1 gap-2 scrollbar-hide -mx-2 px-2">
+                    {groups.map((group) => (
+                        <button
+                            key={group.id}
+                            onClick={() => setSelectedGroup(group.id)}
                             className={`
                                 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border
-                                ${selectedRoom === room
+                                ${selectedGroup === group.id
                                     ? 'bg-slate-800 text-white border-slate-800 shadow-md dark:bg-indigo-500 dark:text-white dark:border-indigo-500'
                                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
                                 }
                             `}
                         >
-                            {room === 'All' && <LayoutGrid className="w-3 h-3 inline-block mr-1.5 -mt-0.5" />}
-                            {room}
+                            {group.id === 'all' && <LayoutGrid className="w-3 h-3 inline-block mr-1.5 -mt-0.5" />}
+                            {group.label}
                         </button>
                     ))}
                 </div>
-
-                {/* Add Device Button (Host Only) */}
-                {currentUserRole === 'host' && (
-                    <button
-                        onClick={handleAddClick}
-                        className="ml-2 w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"
-                        title="Add Device"
-                    >
-                        <Plus className="w-4 h-4" />
-                    </button>
-                )}
             </div>
 
             {/* Device Grid */}
@@ -217,6 +284,8 @@ export const DeviceList: React.FC = () => {
                     const StatusIcon = config.icon;
                     const canViewFeed = currentUserRole === 'host' && (device.type === 'camera' || device.type === 'sensor');
                     const isHost = currentUserRole === 'host';
+                    const telemetry = deviceTelemetry[device.id];
+                    const healthConfig = getHealthConfig(telemetry?.health);
 
                     return (
                         <div
@@ -278,6 +347,12 @@ export const DeviceList: React.FC = () => {
                                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
                                     {device.room}
                                 </p>
+                                <div className={`mt-2 text-[10px] font-semibold flex items-center gap-2 ${healthConfig.color}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${healthConfig.dot}`} />
+                                    <span>{healthConfig.label}</span>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="text-slate-400">Last seen {formatLastSeen(telemetry?.lastSeen)}</span>
+                                </div>
                             </div>
                         </div>
                     );
@@ -285,7 +360,12 @@ export const DeviceList: React.FC = () => {
 
                 {filteredDevices.length === 0 && (
                     <div className="col-span-2 text-center py-12 text-slate-400 dark:text-slate-600">
-                        <p className="text-sm">No devices found in {selectedRoom}</p>
+                        <p className="text-sm">
+                            {selectedGroup === 'all'
+                                ? 'No devices found.'
+                                : `No devices found in ${selectedGroupLabel}.`
+                            }
+                        </p>
                     </div>
                 )}
             </div>
@@ -311,6 +391,8 @@ export const DeviceList: React.FC = () => {
                 onClose={() => setIsFormOpen(false)}
                 onSubmit={handleFormSubmit}
                 initialData={editingDevice}
+                scenes={currentHome.scenes}
+                rooms={rooms}
             />
 
             <ConfirmModal

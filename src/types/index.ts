@@ -6,7 +6,14 @@ export type DeviceType = 'camera' | 'speaker' | 'sensor' | 'lock' | 'light';
 
 export type DeviceStatus = 'active' | 'masked' | 'disabled';
 
+export type DeviceHealth = 'healthy' | 'degraded' | 'offline';
+
 export type PrivacyModeType = 'security' | 'social' | 'private';
+
+export interface Scene {
+    id: string;
+    name: string;
+}
 
 export interface Device {
     id: number;
@@ -14,6 +21,7 @@ export interface Device {
     type: DeviceType;
     status: DeviceStatus;
     room: string;
+    sceneIds?: string[];
 }
 
 export interface PrivacyMode {
@@ -43,12 +51,16 @@ export interface HomeProfile {
     activeMode: PrivacyModeType;
     devices: Device[];
     availableModes: PrivacyMode[];
+    scenes: Scene[];
+    auditLogs?: AuditLogEntry[];
 }
 
 // User Roles & Negotiation
 export type UserRole = 'host' | 'guest';
 export type RequestType = 'prayer' | 'comfort' | 'restore';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
+
+export type AuditLogType = 'connection' | 'mode' | 'request' | 'device' | 'admin';
 
 export interface AccessRequest {
     id: string;
@@ -57,4 +69,15 @@ export interface AccessRequest {
     status: RequestStatus;
     timestamp: number;
     deviceName: string;
+}
+
+export interface AuditLogEntry {
+    id: string;
+    type: AuditLogType;
+    message: string;
+    timestamp: number;
+    actorRole?: UserRole;
+    deviceId?: number;
+    deviceName?: string;
+    modeId?: PrivacyModeType;
 }
