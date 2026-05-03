@@ -18,8 +18,8 @@ const API_URL = 'http://localhost:3001/api';
 interface HomeState {
     currentHome: HomeProfile | null;
     isConnected: boolean;
-    pollingId: any; // To track auto-sync interval
     telemetryId: any; // To track simulated device health updates
+    socket: WebSocket | null;
 
     deviceTelemetry: Record<number, { lastSeen: number; health: DeviceHealth }>;
 
@@ -174,8 +174,8 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     },
 
     // Polling Interval ID
-    pollingId: null,
     telemetryId: null,
+    socket: null,
 
     connectToHome: async (homeCode: string) => {
         try {
@@ -184,23 +184,20 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
             const homeProfile = await response.json();
 
-            // Clear any existing poll or telemetry
-            const { pollingId, telemetryId } = get();
-            if (pollingId) clearInterval(pollingId);
+            // Clear any existing socket or telemetry
+            const { socket, telemetryId } = get();
+            if (socket) socket.close();
             if (telemetryId) clearInterval(telemetryId);
 
-            // Start Polling (Auto-Sync every 2 seconds)
-            const newPollingId = setInterval(async () => {
-                const { currentHome } = get();
-                if (!currentHome) return;
-
+            const newSocket = new WebSocket('ws://localhost:3001');
+            newSocket.addEventListener('open', () => {
+                newSocket.send(JSON.stringify({ type: 'subscribe', homeCode }));
+            });
+            newSocket.addEventListener('message', (event) => {
                 try {
-                    const res = await fetch(`${API_URL}/homes/${homeCode}`);
-                    if (res.ok) {
-                        const updatedData = await res.json();
-                        // Only update if strictly necessary to avoid jitter, 
-                        // but for now simple replacement is fine for the demo.
-                        // We preserve the local 'currentUserRole'
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'home:update' && data.payload) {
+                        const updatedData = data.payload as HomeProfile;
                         set(state => ({
                             currentHome: updatedData,
                             pendingRequests: hydrateRequests(updatedData.requests || [], updatedData.devices || []),
@@ -208,8 +205,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                             auditLog: (updatedData.auditLogs || state.auditLog).slice(0, MAX_AUDIT_ENTRIES)
                         }));
                     }
-                } catch (e) { console.error("Sync failed", e); }
-            }, 3000);
+                } catch (error) {
+                    console.error('WebSocket message parse failed', error);
+                }
+            });
 
             const newTelemetryId = setInterval(() => {
                 const { currentHome, deviceTelemetry } = get();
@@ -236,10 +235,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                 isConnected: true,
                 pendingRequests: hydrateRequests(homeProfile.requests || [], homeProfile.devices || []),
                 currentUserRole: 'guest',
-                pollingId: newPollingId,
                 telemetryId: newTelemetryId,
                 deviceTelemetry: reconcileTelemetry(homeProfile.devices),
-                auditLog: (homeProfile.auditLogs || []).slice(0, MAX_AUDIT_ENTRIES)
+                auditLog: (homeProfile.auditLogs || []).slice(0, MAX_AUDIT_ENTRIES),
+                socket: newSocket
             });
 
             get().addAuditLog(
@@ -293,18 +292,18 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     },
 
     disconnect: () => {
-        const { pollingId, telemetryId } = get();
-        if (pollingId) clearInterval(pollingId);
+        const { telemetryId, socket } = get();
         if (telemetryId) clearInterval(telemetryId);
+        if (socket) socket.close();
 
         set({
             currentHome: null,
             isConnected: false,
             pendingRequests: [],
-            pollingId: null,
             telemetryId: null,
             deviceTelemetry: {},
-            auditLog: []
+            auditLog: [],
+            socket: null
         });
     },
 

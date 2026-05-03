@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const { WebSocketServer } = require('ws');
 
 const app = express();
 const PORT = 3001;
@@ -7,6 +9,40 @@ const PORT = 3001;
 // Enable CORS so the React app (localhost:4000) can talk to this server
 app.use(cors());
 app.use(express.json());
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+const clientHomes = new Map();
+
+const broadcastHomeUpdate = (homeCode) => {
+    const home = db[homeCode];
+    if (!home) return;
+
+    const payload = JSON.stringify({ type: 'home:update', payload: home });
+    wss.clients.forEach((client) => {
+        if (client.readyState === 1 && clientHomes.get(client) === homeCode) {
+            client.send(payload);
+        }
+    });
+};
+
+wss.on('connection', (ws) => {
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message.toString());
+            if (data.type === 'subscribe' && data.homeCode) {
+                clientHomes.set(ws, data.homeCode);
+                broadcastHomeUpdate(data.homeCode);
+            }
+        } catch (error) {
+            console.warn('[WS] Invalid message', error);
+        }
+    });
+
+    ws.on('close', () => {
+        clientHomes.delete(ws);
+    });
+});
 
 // --- Mock Data Definitions ---
 
@@ -168,6 +204,7 @@ app.post('/api/homes/:code/audit-logs', (req, res) => {
     if (!home) return res.status(404).json({ error: 'Home not found' });
 
     const entry = addAuditLog(home, req.body || {});
+    broadcastHomeUpdate(req.params.code);
     res.json({ success: true, entry });
 });
 
@@ -217,6 +254,7 @@ app.post('/api/homes/:code/mode', (req, res) => {
     }
 
     res.json({ success: true, activeMode: home.activeMode });
+    broadcastHomeUpdate(code);
 });
 
 app.post('/api/devices/:id/status', (req, res) => {
@@ -231,6 +269,7 @@ app.post('/api/devices/:id/status', (req, res) => {
         device.status = status;
         console.log(`[DEVICE] ID ${id} (${device.name}) changed state: ${oldStatus} -> ${status}`);
         res.json({ success: true, device });
+        broadcastHomeUpdate(homeCode || '1234');
     } else {
         res.status(404).json({ error: 'Device not found' });
     }
@@ -254,6 +293,7 @@ app.post('/api/negotiation/request', (req, res) => {
     console.log(`[NEGOTIATION] New Request from Guest: ${requestType} on Device ${deviceId}`);
 
     res.json(newRequest);
+    broadcastHomeUpdate(homeCode);
 });
 
 // 5. Respond to Negotiation Request (Approve/Deny)
@@ -295,6 +335,7 @@ app.post('/api/negotiation/respond', (req, res) => {
 
 
     res.json({ success: true, request });
+    broadcastHomeUpdate(homeCode);
 });
 
 // --- Device CRUD Endpoints ---
@@ -319,6 +360,7 @@ app.post('/api/homes/:code/devices', (req, res) => {
     home.devices.push(newDevice);
     console.log(`[CRUD] Created Device: ${name} in ${room}`);
     res.json({ success: true, device: newDevice });
+    broadcastHomeUpdate(code);
 });
 
 // 7. Update Device
@@ -340,6 +382,7 @@ app.put('/api/devices/:id', (req, res) => {
 
     console.log(`[CRUD] Updated Device ${id}: ${device.name}`);
     res.json({ success: true, device });
+    broadcastHomeUpdate(homeCode);
 });
 
 // 8. Delete Device
@@ -358,12 +401,13 @@ app.delete('/api/devices/:id', (req, res) => {
     if (home.devices.length < initialLength) {
         console.log(`[CRUD] Deleted Device ${id}`);
         res.json({ success: true });
+        broadcastHomeUpdate(homeCode || '1234');
     } else {
         res.status(404).json({ error: 'Device not found' });
     }
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`\n🚀 BYSTANDER HUB SERVER RUNNING ON PORT ${PORT}`);
     console.log(`   - Local Address: http://localhost:${PORT}`);
     console.log(`   - Network Simulation: ON (Latency: 200-500ms)\n`);
