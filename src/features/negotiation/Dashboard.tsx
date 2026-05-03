@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHomeStore } from '../../store/useHomeStore';
 import { ModeSelector } from './ModeSelector';
+import { FloorPlan } from './FloorPlan';
 import { DeviceList } from './DeviceList';
 import { AuditLogPanel } from './AuditLogPanel';
 import { Button } from '../../components/ui/Button';
@@ -137,6 +138,9 @@ export const Dashboard: React.FC = () => {
                     <ModeSelector />
                 </section>
             )}
+
+            {/* Floor Plan Visualization */}
+            <FloorPlan />
 
             {/* Device List (Smart Home Grid) */}
             <section>
