@@ -58,7 +58,7 @@ export const AuditLogPanel: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="font-bold text-slate-800 text-lg">Audit Log</h3>
-                        <p className="text-xs text-slate-400 font-medium">Recent activity (client-only)</p>
+                        <p className="text-xs text-slate-400 font-medium">Recent activity</p>
                     </div>
                 </div>
                 <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">

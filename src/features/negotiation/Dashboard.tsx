@@ -5,13 +5,13 @@ import { ModeSelector } from './ModeSelector';
 import { DeviceList } from './DeviceList';
 import { AuditLogPanel } from './AuditLogPanel';
 import { Button } from '../../components/ui/Button';
-import { Home, ShieldCheck, LogOut, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Home, ShieldCheck, LogOut, CheckCircle2, ShieldAlert, Bot } from 'lucide-react';
 import { AdminNotification } from './AdminNotification';
 import { RoleSwitcher } from '../../components/debug/RoleSwitcher';
 
 export const Dashboard: React.FC = () => {
     const navigate = useNavigate();
-    const { currentHome, disconnect, currentUserRole } = useHomeStore();
+    const { currentHome, disconnect, currentUserRole, isAiAutoHostEnabled, toggleAiAutoHost } = useHomeStore();
 
     const handleDisconnect = () => {
         disconnect();
@@ -120,10 +120,19 @@ export const Dashboard: React.FC = () => {
             {currentUserRole === 'host' && (
                 <section>
                     <div className="flex items-center justify-between mb-4 px-2">
-                        <h3 className="font-bold text-slate-800 text-lg">Privacy Modes</h3>
-                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-1 rounded-full uppercase tracking-wider">
-                            Admin Control
-                        </span>
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-lg">Privacy Modes</h3>
+                            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-wider mt-1 inline-block">
+                                Admin Control
+                            </span>
+                        </div>
+                        <button 
+                            onClick={toggleAiAutoHost}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm ${isAiAutoHostEnabled ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            <Bot className={`w-4 h-4 ${isAiAutoHostEnabled ? 'text-indigo-200' : 'text-slate-400'}`} />
+                            AI Auto-Host
+                        </button>
                     </div>
                     <ModeSelector />
                 </section>

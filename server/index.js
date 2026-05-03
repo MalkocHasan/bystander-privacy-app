@@ -184,7 +184,8 @@ const db = {
         ],
         auditLogs: [],
         requests: [],
-        pairingCodes: {}
+        pairingCodes: {},
+        isAiAutoHostEnabled: false
     }
 };
 
@@ -316,6 +317,21 @@ app.post('/api/homes/:code/mode', (req, res) => {
     broadcastHomeUpdate(code);
 });
 
+// --- AI Auto Host Toggle ---
+app.post('/api/homes/:code/ai-host', (req, res) => {
+    const { code } = req.params;
+    const { enabled } = req.body;
+    
+    const home = db[code];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    home.isAiAutoHostEnabled = !!enabled;
+    console.log(`[AI] Auto-Host for home ${code} is now ${home.isAiAutoHostEnabled ? 'ON' : 'OFF'}`);
+    
+    res.json({ success: true, isAiAutoHostEnabled: home.isAiAutoHostEnabled });
+    broadcastHomeUpdate(code);
+});
+
 app.post('/api/devices/:id/status', (req, res) => {
     const { id } = req.params;
     const { status, homeCode } = req.body;
@@ -343,7 +359,7 @@ app.post('/api/devices/:id/status', (req, res) => {
     }
 });
 
-app.post('/api/negotiation/request', (req, res) => {
+app.post('/api/negotiation/request', async (req, res) => {
     const { homeCode, deviceId, requestType } = req.body;
     const home = db[homeCode];
 
@@ -359,6 +375,83 @@ app.post('/api/negotiation/request', (req, res) => {
 
     home.requests.push(newRequest);
     console.log(`[NEGOTIATION] New Request from Guest: ${requestType} on Device ${deviceId}`);
+
+    // AI AUTO-HOST INTERCEPT
+    if (home.isAiAutoHostEnabled) {
+        console.log(`[AI] Auto-Host is ON. Evaluating request...`);
+        const device = home.devices.find(d => d.id === deviceId);
+        
+        try {
+            // Ask Local Ollama (e.g. llama3)
+            // Note: If you have a specific model installed, replace 'llama3' with it. 'llama3' or 'mistral' are common.
+            const prompt = `
+                You are the AI Auto-Host for a Smart Home. Your absolute highest priority is respecting Guest Privacy.
+                A guest just requested to change the ${device.type} named "${device.name}" in the "${device.room}" to "${requestType}" mode.
+                The current active home mode is "${home.activeMode}".
+                
+                Rules for decision making:
+                1. You must almost always APPROVE "prayer" and "comfort" requests to respect the guest's personal boundaries, even if the home is in "security" mode.
+                2. Only REJECT if the request seems highly dangerous or nonsensical.
+                
+                Should you approve or reject this privacy request?
+                Respond strictly with a raw JSON object in this exact format: {"status": "approved" | "rejected", "reason": "short explanation"}
+                Do not wrap the response in markdown blocks or backticks. Return ONLY the JSON object.
+            `;
+
+            const ollamaRes = await fetch('http://127.0.0.1:11434/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'llama3', // Adjust based on user's installed model
+                    prompt: prompt,
+                    stream: false,
+                    format: 'json'
+                })
+            });
+
+            if (ollamaRes.ok) {
+                const aiData = await ollamaRes.json();
+                const decision = JSON.parse(aiData.response);
+                
+                // Normalize status to lowercase to avoid "APPROVED" !== "approved" bug
+                const normalizedStatus = (decision.status || 'rejected').toLowerCase();
+                console.log(`[AI] Decision: ${normalizedStatus.toUpperCase()} - ${decision.reason}`);
+                
+                // Process the decision automatically
+                newRequest.status = normalizedStatus;
+                
+                if (normalizedStatus === 'approved') {
+                    let targetStatus = 'masked';
+                    if (requestType === 'restore') targetStatus = 'active';
+                    else if (requestType === 'prayer') targetStatus = 'disabled';
+                    else if (requestType === 'comfort') targetStatus = 'masked';
+                    
+                    device.status = targetStatus;
+                    console.log(`[AUTO-ACTION] Updating Device ${device.name} to ${targetStatus}`);
+                    
+                    aedes.publish({
+                        topic: `home/${homeCode}/device/${device.id}/status`,
+                        payload: JSON.stringify({ command: 'setStatus', status: targetStatus }),
+                        qos: 0,
+                        retain: false
+                    });
+                }
+                
+                // Add an audit log to show the AI did this
+                addAuditLog(home, {
+                    type: 'request',
+                    message: `AI Auto-Host ${decision.status} ${requestType} for ${device.name}. Reason: ${decision.reason}`,
+                    actorRole: 'ai-host',
+                    deviceId,
+                    deviceName: device.name
+                });
+            } else {
+                console.warn(`[AI] Failed to reach Ollama at 127.0.0.1:11434. Check if Ollama is running.`);
+            }
+        } catch (err) {
+            console.error(`[AI] Error communicating with local AI model:`, err.message);
+        }
+    }
 
     res.json(newRequest);
     broadcastHomeUpdate(homeCode);

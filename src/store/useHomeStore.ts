@@ -55,6 +55,10 @@ interface HomeState {
     // Theme
     isDarkMode: boolean;
     toggleDarkMode: () => void;
+
+    // AI Auto Host
+    isAiAutoHostEnabled: boolean;
+    toggleAiAutoHost: () => void;
 }
 
 const HEALTH_THRESHOLDS_MS = {
@@ -157,6 +161,24 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     currentUserRole: 'guest',
     pendingRequests: [],
     isDarkMode: false, // Default to light
+    isAiAutoHostEnabled: false,
+    toggleAiAutoHost: () => {
+        set(state => {
+            const newState = !state.isAiAutoHostEnabled;
+            // Tell the backend about this change if needed, or backend can just read from a request param,
+            // but for simplicity, we can just send it when making negotiation requests, or have a separate API.
+            // Let's call an API to sync state with backend
+            const { currentHome } = state;
+            if (currentHome) {
+                fetch(`${API_URL}/homes/${currentHome.homeCode}/ai-host`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newState })
+                }).catch(err => console.error(err));
+            }
+            return { isAiAutoHostEnabled: newState };
+        });
+    },
 
     deviceTelemetry: {},
     deviceStreams: {},
