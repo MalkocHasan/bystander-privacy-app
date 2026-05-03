@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useHomeStore } from '../../store/useHomeStore';
 import type { Device } from '../../types';
 import { X, Maximize2, Mic, MicOff, Video, VideoOff, Activity, ShieldCheck, Wifi } from 'lucide-react';
 
@@ -15,6 +16,9 @@ export const LiveFeedModal: React.FC<LiveFeedModalProps> = ({
 }) => {
     // Mock signal strength fluctuating
     const [signal, setSignal] = useState(90);
+    const liveSensorData = useHomeStore(state => 
+        device ? state.deviceStreams[device.id] : undefined
+    );
 
     useEffect(() => {
         if (!isOpen) return;
@@ -111,24 +115,48 @@ export const LiveFeedModal: React.FC<LiveFeedModalProps> = ({
                     )}
 
                     {/* Scenario 3: Sensor Data Mock */}
-                    {(isActive) && isSensor && (
+                    {isSensor && (
                         <div className="w-full h-full p-8 flex flex-col justify-end">
-                            {/* Mock Graph using CSS Bars */}
-                            <div className="flex justify-between items-end h-32 gap-1 mb-8">
-                                {[...Array(20)].map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="w-full bg-green-500/50 rounded-t-sm animate-pulse"
-                                        style={{
-                                            height: `${20 + Math.random() * 80}%`,
-                                            animationDelay: `${i * 0.1}s`
-                                        }}
-                                    />
-                                ))}
+                            {/* Overlay if disabled */}
+                            {(!isActive) && (
+                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-slate-900/50 backdrop-blur-sm">
+                                    <div className="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                                        Sensor {isMasked ? 'Masked' : 'Disabled'}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Real Server Data Graph via CSS Bars */}
+                            <div className={`flex justify-between items-end h-32 gap-1 mb-8 ${!isActive ? 'opacity-30' : ''}`}>
+                                {(liveSensorData && liveSensorData.length > 0) ? (
+                                    liveSensorData.map((val, i) => (
+                                        <div
+                                            key={i}
+                                            className="w-full bg-green-500/50 rounded-t-sm transition-all duration-300"
+                                            style={{
+                                                height: isActive ? `${val}%` : '2%' // Flatline if inactive
+                                            }}
+                                        />
+                                    ))
+                                ) : (
+                                    // Fallback / Loading Mock Graph if server stream not connected
+                                    [...Array(20)].map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className="w-full bg-green-500/20 rounded-t-sm"
+                                            style={{
+                                                height: isActive ? `${20 + Math.random() * 80}%` : '2%', // Flatline
+                                                animation: isActive ? `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite` : 'none',
+                                                animationDelay: `${i * 0.1}s`
+                                            }}
+                                        />
+                                    ))
+                                )}
                             </div>
                             <div className="flex justify-between text-xs font-mono text-green-400 border-t border-green-500/30 pt-2">
-                                <span>Activity Detected</span>
-                                <span>Sensitivity: High</span>
+                                <span>{isActive ? 'Activity Detected' : 'No Signal'}</span>
+                                <span>Sensitivity: {isActive ? 'High' : 'Off'}</span>
                             </div>
                         </div>
                     )}

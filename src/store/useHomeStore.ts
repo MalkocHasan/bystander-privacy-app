@@ -22,6 +22,7 @@ interface HomeState {
     socket: WebSocket | null;
 
     deviceTelemetry: Record<number, { lastSeen: number; health: DeviceHealth }>;
+    deviceStreams: Record<number, number[]>;
 
     // Negotiation State
     currentUserRole: UserRole;
@@ -46,6 +47,7 @@ interface HomeState {
     addDevice: (device: Omit<Device, 'id' | 'status'>) => void;
     editDevice: (deviceId: number, updates: Partial<Omit<Device, 'id'>>) => void;
     removeDevice: (deviceId: number) => void;
+    generatePairingCode: () => Promise<string | null>;
 
     // Admin Config Action
     updateModeRules: (modeId: PrivacyModeType, rules: Partial<PrivacyMode['rules']>) => void;
@@ -157,6 +159,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     isDarkMode: false, // Default to light
 
     deviceTelemetry: {},
+    deviceStreams: {},
     auditLog: [],
     addAuditLog: (entry) => {
         set(state => ({
@@ -203,6 +206,13 @@ export const useHomeStore = create<HomeState>((set, get) => ({
                             pendingRequests: hydrateRequests(updatedData.requests || [], updatedData.devices || []),
                             deviceTelemetry: reconcileTelemetry(updatedData.devices, state.deviceTelemetry),
                             auditLog: (updatedData.auditLogs || state.auditLog).slice(0, MAX_AUDIT_ENTRIES)
+                        }));
+                    } else if (data.type === 'device:stream') {
+                        set(state => ({
+                            deviceStreams: {
+                                ...state.deviceStreams,
+                                [data.deviceId]: data.data
+                            }
                         }));
                     }
                 } catch (error) {
@@ -302,6 +312,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
             pendingRequests: [],
             telemetryId: null,
             deviceTelemetry: {},
+            deviceStreams: {},
             auditLog: [],
             socket: null
         });
@@ -594,6 +605,22 @@ export const useHomeStore = create<HomeState>((set, get) => ({
         fetch(`${API_URL}/devices/${deviceId}?homeCode=${currentHome.homeCode}`, {
             method: 'DELETE'
         });
+    },
+
+    generatePairingCode: async () => {
+        const { currentHome } = get();
+        if (!currentHome) return null;
+        try {
+            const res = await fetch(`${API_URL}/homes/${currentHome.homeCode}/pairing`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                return data.pairingCode;
+            }
+            return null;
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     },
 
     // --- Admin Config ---

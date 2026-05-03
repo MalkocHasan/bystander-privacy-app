@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const aedes = require('aedes')();
+const net = require('net');
 
 const app = express();
 const PORT = 3001;
@@ -26,6 +28,19 @@ const broadcastHomeUpdate = (homeCode) => {
     });
 };
 
+const broadcastDeviceStream = (homeCode, deviceId, data) => {
+    const payload = JSON.stringify({
+        type: 'device:stream',
+        deviceId,
+        data
+    });
+    wss.clients.forEach((client) => {
+        if (client.readyState === 1 && clientHomes.get(client) === homeCode) {
+            client.send(payload);
+        }
+    });
+};
+
 wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
@@ -42,6 +57,40 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         clientHomes.delete(ws);
     });
+});
+
+// --- MQTT Broker Setup ---
+const mqttServer = net.createServer(aedes.handle);
+const MQTT_PORT = 1883;
+mqttServer.listen(MQTT_PORT, () => {
+    console.log(`[MQTT] Broker running on port ${MQTT_PORT}`);
+});
+
+aedes.on('client', (client) => {
+    console.log(`[MQTT] Client Connected: ${client ? client.id : client}`);
+});
+
+aedes.on('clientDisconnect', (client) => {
+    console.log(`[MQTT] Client Disconnected: ${client ? client.id : client}`);
+});
+
+aedes.on('publish', (packet, client) => {
+    if (client) {
+        const topic = packet.topic;
+        // e.g., home/1234/device/101/stream
+        if (topic.endsWith('/stream')) {
+            const parts = topic.split('/');
+            const homeCode = parts[1];
+            const deviceId = parseInt(parts[3], 10);
+            
+            try {
+                const data = JSON.parse(packet.payload.toString());
+                broadcastDeviceStream(homeCode, deviceId, data.payload);
+            } catch (e) {
+                console.warn('[MQTT] Error parsing stream data', e);
+            }
+        }
+    }
 });
 
 // --- Mock Data Definitions ---
@@ -114,7 +163,8 @@ const db = {
             { id: 11, name: 'Office Webcam', type: 'camera', status: 'active', room: 'Office', sceneIds: ['scene-away'] },
             { id: 12, name: 'Work Assistant', type: 'speaker', status: 'active', room: 'Office', sceneIds: ['scene-quiet'] },
         ],
-        requests: []
+        requests: [],
+        pairingCodes: {}
     },
     '5678': {
         homeCode: '5678',
@@ -133,7 +183,8 @@ const db = {
             { id: 'scene-away', name: 'Away Mode' }
         ],
         auditLogs: [],
-        requests: []
+        requests: [],
+        pairingCodes: {}
     }
 };
 
@@ -244,6 +295,14 @@ app.post('/api/homes/:code/mode', (req, res) => {
                 if (newStatus && newStatus !== device.status) {
                     device.status = newStatus;
                     updateCount++;
+
+                    // Publish to MQTT
+                    aedes.publish({
+                        topic: `home/${code}/device/${device.id}/status`,
+                        payload: JSON.stringify({ command: 'setStatus', status: newStatus }),
+                        qos: 0,
+                        retain: false
+                    });
                 }
             }
             // Optional: If switching back to Security (Active), might want to restore? 
@@ -268,6 +327,15 @@ app.post('/api/devices/:id/status', (req, res) => {
         const oldStatus = device.status;
         device.status = status;
         console.log(`[DEVICE] ID ${id} (${device.name}) changed state: ${oldStatus} -> ${status}`);
+        
+        // Publish to MQTT
+        aedes.publish({
+            topic: `home/${homeCode || '1234'}/device/${device.id}/status`,
+            payload: JSON.stringify({ command: 'setStatus', status: status }),
+            qos: 0,
+            retain: false
+        });
+
         res.json({ success: true, device });
         broadcastHomeUpdate(homeCode || '1234');
     } else {
@@ -329,6 +397,14 @@ app.post('/api/negotiation/respond', (req, res) => {
             }
             console.log(`[AUTO-ACTION] Updating Device ${device.name} to ${targetStatus}`);
             device.status = targetStatus;
+
+            // Publish to MQTT
+            aedes.publish({
+                topic: `home/${homeCode}/device/${device.id}/status`,
+                payload: JSON.stringify({ command: 'setStatus', status: targetStatus }),
+                qos: 0,
+                retain: false
+            });
         }
     }
 
@@ -405,6 +481,75 @@ app.delete('/api/devices/:id', (req, res) => {
     } else {
         res.status(404).json({ error: 'Device not found' });
     }
+});
+
+// --- Secure Pairing Endpoints ---
+
+// 9. Generate Pairing Code
+app.post('/api/homes/:code/pairing', (req, res) => {
+    const { code } = req.params;
+    const home = db[code];
+    if (!home) return res.status(404).json({ error: 'Home not found' });
+
+    const pairingCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+    home.pairingCodes[pairingCode] = {
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
+    };
+
+    console.log(`[PAIRING] Generated code ${pairingCode} for home ${code}`);
+    res.json({ success: true, pairingCode, expiresAt: home.pairingCodes[pairingCode].expiresAt });
+});
+
+// 10. Claim Device with Code
+app.post('/api/pairing/claim', (req, res) => {
+    const { pairingCode, name, type, room } = req.body;
+
+    let targetHomeCode = null;
+    let targetHome = null;
+
+    // Find the home that has this pairing code
+    for (const [hCode, home] of Object.entries(db)) {
+        if (home.pairingCodes && home.pairingCodes[pairingCode]) {
+            const pCodeData = home.pairingCodes[pairingCode];
+            if (Date.now() < pCodeData.expiresAt) {
+                targetHomeCode = hCode;
+                targetHome = home;
+                break;
+            } else {
+                delete home.pairingCodes[pairingCode]; // Expired
+            }
+        }
+    }
+
+    if (!targetHome) {
+        return res.status(400).json({ error: 'Invalid or expired pairing code' });
+    }
+
+    // Claim successful, remove the code
+    delete targetHome.pairingCodes[pairingCode];
+
+    // Create the device
+    const newDevice = {
+        id: Math.floor(Math.random() * 100000),
+        name: name || 'New Device',
+        type: type || 'sensor',
+        room: room || 'Unassigned',
+        status: 'active',
+        sceneIds: []
+    };
+
+    targetHome.devices.push(newDevice);
+    console.log(`[PAIRING] Device ${newDevice.id} paired to home ${targetHomeCode} successfully!`);
+    
+    broadcastHomeUpdate(targetHomeCode);
+    
+    res.json({
+        success: true,
+        homeCode: targetHomeCode,
+        deviceId: newDevice.id,
+        device: newDevice
+    });
 });
 
 server.listen(PORT, () => {

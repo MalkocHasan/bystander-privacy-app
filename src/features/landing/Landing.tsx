@@ -42,7 +42,7 @@ export const Landing: React.FC = () => {
                         Bystander
                     </h1>
                     <p className="text-slate-500 mt-2 font-medium">
-                        Smart home privacy, simplified.
+                        Smart home privacy
                     </p>
                 </div>
 

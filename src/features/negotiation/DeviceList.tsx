@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useHomeStore } from '../../store/useHomeStore';
 import type { DeviceType, DeviceStatus, Device, RequestType, DeviceHealth } from '../../types';
-import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid, Play, Pencil, Trash2, Plus } from 'lucide-react';
+import { Eye, EyeOff, MicOff, Lock, Zap, ZapOff, Clock, LayoutGrid, Play, Pencil, Trash2, Plus, KeyRound } from 'lucide-react';
 import { RequestModal } from './RequestModal';
 import { LiveFeedModal } from './LiveFeedModal';
 import { DeviceFormModal } from './DeviceFormModal';
@@ -17,6 +17,7 @@ export const DeviceList: React.FC = () => {
         addDevice,
         editDevice,
         removeDevice,
+        generatePairingCode,
         deviceTelemetry
     } = useHomeStore();
 
@@ -31,6 +32,8 @@ export const DeviceList: React.FC = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDevice, setEditingDevice] = useState<Device | undefined>(undefined);
     const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
+    const [pairingCode, setPairingCode] = useState<string | null>(null);
+    const [isPairingOpen, setIsPairingOpen] = useState(false);
 
     if (!currentHome) return null;
 
@@ -108,6 +111,14 @@ export const DeviceList: React.FC = () => {
     const handleAddClick = () => {
         setEditingDevice(undefined);
         setIsFormOpen(true);
+    };
+
+    const handlePairClick = async () => {
+        const code = await generatePairingCode();
+        if (code) {
+            setPairingCode(code);
+            setIsPairingOpen(true);
+        }
     };
 
     const handleEditClick = (e: React.MouseEvent, device: Device) => {
@@ -246,13 +257,22 @@ export const DeviceList: React.FC = () => {
 
                     {/* Add Device Button (Host Only) */}
                     {currentUserRole === 'host' && (
-                        <button
-                            onClick={handleAddClick}
-                            className="ml-2 w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"
-                            title="Add Device"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-2 ml-2">
+                            <button
+                                onClick={handlePairClick}
+                                className="w-8 h-8 flex items-center justify-center bg-teal-600 text-white rounded-full shadow-md hover:bg-teal-700 transition-colors"
+                                title="Pair New Device"
+                            >
+                                <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={handleAddClick}
+                                className="w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"
+                                title="Add Mock Device"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -403,6 +423,16 @@ export const DeviceList: React.FC = () => {
                 onCancel={() => setDeviceToDelete(null)}
                 confirmText="Delete"
                 isDestructive
+            />
+
+            {/* Pairing Code Modal */}
+            <ConfirmModal
+                isOpen={isPairingOpen}
+                title="Device Pairing Code"
+                message={`Enter this 6-digit code on the device simulator to securely pair it with this home network:\n\n${pairingCode}\n\nThis code expires in 5 minutes.`}
+                onConfirm={() => setIsPairingOpen(false)}
+                onCancel={() => setIsPairingOpen(false)}
+                confirmText="Close"
             />
         </>
     );
